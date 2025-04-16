@@ -1,0 +1,5 @@
+# 基本依賴，根據實際使用的庫添加 (例如 torch, tensorflow)
+numpy
+tensorboard
+# matplotlib # 如果 visualization/plotter.py 需要
+# scipy     # 如果 metrics/distribution.py 需要
