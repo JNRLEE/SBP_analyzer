@@ -1,13 +1,14 @@
-# SBP_analyzer 開發指南
+# SBP_analyzer 開發指南 (Ad-hoc 分析版)
 
 ## 1. 專案概述
 
-SBP_analyzer 是一個模型分析工具包，旨在協助深度學習模型訓練過程中的監控和分析。它提供兩種主要功能模式：
+SBP_analyzer 是一個專注於 **Ad-hoc (離線) 模型訓練分析** 的工具包。它旨在協助開發者深入理解已完成的深度學習模型訓練過程。本工具包的核心功能是分析儲存在指定目錄結構中的訓練結果，包括模型架構、訓練指標、以及透過模型鉤子 (hooks) 擷取的中間層數據。
 
-1. **即時回調模式**：在訓練過程中即時監控和分析模型行為
-2. **離線分析模式**：分析已儲存在 `/results` 目錄中的訓練結果
-
-本專案與 MicDysphagiaFramework 有適配的橋接機制，但也可以作為獨立工具使用。
+本專案的目標是提供一個系統化、可擴展的框架，用以：
+- 解析和載入不同來源的訓練數據。
+- 計算多樣化的分析指標。
+- 提供豐富的視覺化工具以呈現分析結果。
+- 自動生成結構化的分析報告。
 
 ## 2. 系統架構
 
@@ -15,244 +16,259 @@ SBP_analyzer 是一個模型分析工具包，旨在協助深度學習模型訓�
 
 ```
 SBP_analyzer/
-├── callbacks/                   # 即時回調實現
-│   ├── base_callback.py         # 基礎回調類
-│   ├── data_drift_callback.py   # 數據漂移監控
-│   ├── feature_monitor_callback.py  # 特徵監控
-│   ├── outlier_detection_callback.py  # 異常值檢測
-│   └── ...
+├── analyzer/                    # 核心分析邏輯
+│   ├── __init__.py
+│   ├── base_analyzer.py         # 基礎分析器類別
+│   ├── model_structure_analyzer.py # 分析模型結構
+│   ├── training_dynamics_analyzer.py # 分析訓練動態 (loss, metrics)
+│   └── intermediate_data_analyzer.py # 分析中間層數據
 │
-├── model_hooks/                 # 模型鉤子功能
-│   ├── hook_manager.py          # 鉤子管理器
-│   └── hook_utils.py            # 鉤子工具函數
+├── data_loader/                 # 數據載入與解析
+│   ├── __init__.py
+│   ├── base_loader.py           # 基礎載入器
+│   ├── experiment_loader.py     # 載入標準實驗結果文件 (如 config.json, training_history.json)
+│   └── hook_data_loader.py      # 載入由模型鉤子儲存的數據 (.pt 文件)
 │
 ├── metrics/                     # 分析指標計算
-│   ├── drift_metrics.py         # 數據漂移指標
-│   ├── distribution_metrics.py  # 分布比較指標
-│   └── ...
+│   ├── __init__.py
+│   ├── distribution_metrics.py  # 分布比較指標 (e.g., KL散度, Wasserstein距離)
+│   └── performance_metrics.py   # 模型性能指標 (e.g., 穩定性, 收斂速度)
+│   └── layer_activity_metrics.py # 層活躍度相關指標 (e.g., 稀疏度)
 │
 ├── visualization/               # 視覺化功能
-│   ├── distribution_plots.py    # 分布視覺化
-│   ├── feature_plots.py         # 特徵視覺化
-│   └── ...
+│   ├── __init__.py
+│   ├── distribution_plots.py    # 分布視覺化 (直方圖, 密度圖)
+│   ├── performance_plots.py     # 性能視覺化 (學習曲線, 指標趨勢)
+│   ├── model_structure_plots.py # 模型結構視覺化 (計算圖)
+│   └── layer_activity_plots.py  # 層活動視覺化 (熱力圖, 激活值分布)
 │
-├── results_parser/              # 結果解析功能
-│   ├── model_parser.py          # 解析模型結構
-│   ├── metric_parser.py         # 解析訓練指標
-│   └── ...
+├── reporter/                    # 報告生成
+│   ├── __init__.py
+│   └── report_generator.py      # 生成 HTML 或 Markdown 格式的分析報告
 │
 ├── utils/                       # 通用工具
-│   ├── tensor_utils.py          # 張量處理工具
-│   ├── stat_utils.py            # 統計分析工具
-│   └── ...
+│   ├── __init__.py
+│   ├── file_utils.py            # 文件和目錄操作工具
+│   └── tensor_utils.py          # 張量處理和轉換工具
+│   └── stat_utils.py            # 常用統計函數
 │
 ├── interfaces/                  # 用戶接口
-│   ├── callback_interface.py    # 回調接口
-│   └── analyzer_interface.py    # 分析接口
+│   ├── __init__.py
+│   └── analyzer_interface.py    # 分析器主接口，用於啟動分析流程
 │
 └── tests/                       # 測試模組
-    ├── mock_framework/          # 模擬訓練框架
-    └── ...
+    ├── test_data/               # 存放測試用的模擬數據文件
+    ├── test_analyzer.py         # 測試分析器模組
+    ├── test_data_loader.py      # 測試數據載入器
+    ├── test_metrics.py          # 測試指標計算
+    └── test_visualization.py    # 測試視覺化功能
 ```
 
-### 2.2 雙軌功能模式
+### 2.2 Ad-hoc 分析流程
 
-#### 即時回調模式
-在此模式下，SBP_analyzer 透過回調機制與訓練框架整合，實時監控訓練過程。
-
-```python
-# 使用即時回調模式
-from sbp_analyzer.callbacks import DataDriftCallback
-from micdsyphagia_framework.trainers import PyTorchTrainer
-
-# 創建訓練器
-trainer = PyTorchTrainer(model, criterion, optimizer)
-
-# 添加回調
-callback = DataDriftCallback(
-    reference_data=reference_dataset,
-    drift_metrics=['ks', 'psi'],
-    output_dir='./analysis_results'
-)
-trainer.add_callback(callback)
-
-# 執行訓練
-trainer.train(train_loader, val_loader, epochs=30)
-```
-
-#### 離線分析模式
-在此模式下，SBP_analyzer 分析已儲存的訓練結果。
+典型的 Ad-hoc 分析流程如下：
 
 ```python
-# 使用離線分析模式
+# 使用 Ad-hoc 分析模式
 from sbp_analyzer.interfaces.analyzer_interface import SBPAnalyzer
 
-# 初始化分析器
-analyzer = SBPAnalyzer(results_dir='results/audio_fcnn_regression_20250416_213304')
+# 初始化分析器，指定包含訓練結果的目錄
+# 這裡假設指向 MicDysphagiaFramework 產生的實驗結果目錄
+analyzer = SBPAnalyzer(experiment_dir='results/audio_swin_regression_20250417_142912')
 
-# 分析訓練過程
-training_analysis = analyzer.analyze_training()
+# 執行分析 (可以選擇性指定分析模組)
+analysis_results = analyzer.analyze(
+    analyze_model_structure=True,  # 分析模型結構
+    analyze_training_history=True, # 分析訓練歷史
+    analyze_hooks=True,            # 分析 hook 數據
+    epochs=[0, 5, 10],             # 可選擇指定要分析的特定輪次
+    layers=['patch_embed', 'layers.0']  # 可選擇指定要分析的特定層
+)
 
-# 生成報告
-analyzer.generate_report('./analysis_report')
+# 生成分析報告
+analyzer.generate_report(
+    output_dir='./analysis_report',
+    report_format='html' # 或 'markdown'
+)
+
+# 或者，直接訪問特定分析結果
+model_summary = analysis_results.get_model_summary()
+loss_curve_plot = analysis_results.get_plot('loss_curve')
+layer_activation_dist = analysis_results.get_activation_distribution('patch_embed', epoch=0)
 ```
 
 ## 3. 開發路線圖
 
-### 階段一：基礎架構和核心功能
+### 階段一：基礎架構和核心數據處理
 
-1. **基礎回調系統**
-   - 實現 `BaseCallback` 類
-   - 實現模擬測試環境
-   - 建立與 MicDysphagiaFramework 的橋接
+1.  **建立核心架構**
+    *   實現 `analyzer`, `data_loader`, `metrics`, `visualization`, `reporter`, `utils`, `interfaces` 目錄結構。
+    *   定義 `BaseAnalyzer` 和 `BaseLoader` 抽象基礎類別。
+2.  **基礎數據載入**
+    *   實現 `ExperimentLoader` 以載入 MicDysphagiaFramework 格式的訓練結果 (config.json, training_history.json 等)。
+    *   實現 `HookDataLoader` 以載入 hook 目錄中的 .pt 數據文件。
+    *   實現 `file_utils` 來處理路徑和文件查找。
+3.  **基礎指標和視覺化**
+    *   實現 `distribution_metrics` 中的基本分布統計量。
+    *   實現 `performance_metrics` 中的基本訓練指標計算。
+    *   實現 `distribution_plots` 和 `performance_plots` 中的基礎繪圖功能 (e.g., 直方圖, 學習曲線)。
+4.  **建立測試基礎**
+    *   設置 `pytest` 環境。
+    *   建立 `test_data` 目錄並加入模擬數據。
+    *   為 `data_loader` 和 `utils` 編寫初步的單元測試。
 
-2. **核心指標計算功能**
-   - 實現數據漂移指標
-   - 實現分布比較指標
-   - 實現異常值檢測指標
+### 階段二：核心分析功能開發
 
-3. **基本視覺化功能**
-   - 實現分布視覺化
-   - 實現訓練曲線視覺化
+1.  **模型結構分析**
+    *   實現 `ModelStructureAnalyzer`，解析 model_structure.json 文件中的模型層次結構和參數信息。
+    *   實現 `model_structure_plots`，繪製模型層級圖和參數分布圖。
+2.  **訓練動態分析**
+    *   實現 `TrainingDynamicsAnalyzer`，分析 training_history.json 中的 Loss 和 Metrics 趨勢。
+    *   在 `performance_metrics` 中加入更進階的指標 (e.g., 移動平均、變異數)。
+    *   在 `performance_plots` 中加入更多視覺化選項 (e.g., 指標相關性圖)。
+3.  **報告生成器初步實現**
+    *   實現 `ReportGenerator`，能夠將文字、指標和圖像整合到一個簡單的 Markdown 或 HTML 報告中。
+4.  **擴充測試**
+    *   為 `analyzer`, `metrics`, `visualization` 模組增加單元測試。
 
-### 階段二：數據監控與分析功能
+### 階段三：中間層數據分析
 
-1. **數據監控回調**
-   - 實現 `DataDriftCallback`
-   - 實現 `OutlierDetectionCallback`
+1.  **中間層數據分析器**
+    *   實現 `IntermediateDataAnalyzer`，分析 hooks 目錄中的激活值 (.pt) 數據。
+    *   實現 `layer_activity_metrics`，計算激活值的統計量 (e.g., 均值、標準差、稀疏度)。
+    *   實現 `layer_activity_plots`，繪製激活值的熱力圖或分布圖。
+2.  **進階分布比較**
+    *   在 `distribution_metrics` 中加入更複雜的指標 (e.g., KL 散度, Wasserstein 距離)。
+    *   在 `distribution_plots` 中加入比較視覺化 (e.g., 並排或重疊的分布圖)。
+3.  **增強報告功能**
+    *   允許自訂報告佈局和包含的內容。
+    *   支援輸出更多格式。
+4.  **整合測試**
+    *   編寫整合測試，模擬完整的分析流程。
 
-2. **結果解析功能**
-   - 實現 `ModelParser`
-   - 實現 `MetricParser`
+### 階段四：高級功能與易用性提升
 
-3. **提升測試覆蓋率**
-   - 增加單元測試
-   - 增加集成測試
+1.  **交互式視覺化 (可選)**
+    *   探索整合 Plotly 或 Bokeh 等庫，提供交互式圖表。
+2.  **可配置性與擴展性**
+    *   允許用戶通過配置文件指定分析參數和要使用的模組。
+    *   設計易於擴展的接口，方便用戶添加自訂的分析器、載入器、指標或繪圖函數。
+3.  **文檔與示例**
+    *   完善 API 文檔和使用指南。
+    *   提供針對不同應用場景的詳細示例 (e.g., 分析 CNN 的特徵圖, 分析 Transformer 的注意力權重)。
+4.  **性能優化**
+    *   針對大型數據集和複雜分析進行性能評估和優化。
 
-### 階段三：模型內部分析功能
+## 4. 數據載入器設計
 
-1. **模型鉤子系統**
-   - 實現 `HookManager`
-   - 實現激活值和梯度收集功能
+### 4.1 MicDysphagiaFramework 實驗結果結構
 
-2. **模型內部分析回調**
-   - 實現 `FeatureMonitorCallback`
-   - 實現 `GradientFlowCallback`
-   - 實現 `WeightBiasCallback`
+SBP_analyzer 主要針對 MicDysphagiaFramework 產生的實驗結果進行分析。以下是預期的輸入目錄結構和文件格式：
 
-3. **增強視覺化功能**
-   - 實現特徵相關性視覺化
-   - 實現激活值熱力圖
-   - 實現梯度流視覺化
-
-### 階段四：高級功能與整合
-
-1. **預測分析功能**
-   - 實現 `ErrorAnalysisCallback`
-   - 實現 `UncertaintyCallback`
-
-2. **條件觸發機制**
-   - 實現基於閾值的觸發
-   - 實現基於規則的觸發
-
-3. **文檔與示例**
-   - 完善使用文檔
-   - 提供典型使用場景的示例
-
-## 4. 回調系統詳細設計
-
-### 4.1 回調接口
-
-所有回調都實現以下基本接口：
-
-```python
-class BaseCallback:
-    def on_train_begin(self, model, logs=None): ...
-    def on_epoch_begin(self, epoch, model, logs=None): ...
-    def on_batch_begin(self, batch, model, inputs, targets, logs=None): ...
-    def on_batch_end(self, batch, model, inputs, targets, outputs, loss, logs=None): ...
-    def on_epoch_end(self, epoch, model, train_logs, val_logs, logs=None): ...
-    def on_train_end(self, model, history, logs=None): ...
+```
+results/
+└── {實驗名稱}_{時間戳}/               # 例：audio_swin_regression_20250417_142912/
+    ├── config.json                 # 實驗配置文件
+    ├── model_structure.json        # 模型結構信息
+    ├── training_history.json       # 訓練歷史記錄
+    ├── models/                     # 模型權重保存目錄
+    │   ├── best_model.pth          # 最佳模型權重
+    │   ├── checkpoint_epoch_0.pth  # 第0輪模型權重檢查點
+    │   └── checkpoint_epoch_1.pth  # 第1輪模型權重檢查點
+    ├── hooks/                      # 模型鉤子數據
+    │   ├── training_summary.pt     # 整體訓練摘要
+    │   ├── evaluation_results_test.pt  # 測試集評估結果
+    │   ├── epoch_0/                # 第0輪數據
+    │   │   ├── epoch_summary.pt    # 輪次摘要
+    │   │   ├── batch_0_data.pt     # 第0批次數據
+    │   │   └── head_activation_batch_0.pt  # 頭部層激活值
+    │   └── epoch_1/                # 第1輪數據
+    │       └── ...                 # 同上
+    ├── results/                    # 實驗結果
+    │   └── results.json            # 最終結果摘要
+    ├── tensorboard_logs/           # TensorBoard日誌
+    └── logs/                       # 訓練日誌
 ```
 
-### 4.2 數據流動與調用時序
+### 4.2 核心載入器設計
 
-在訓練流程中，回調的調用時序如下：
+#### `ExperimentLoader`
 
-1. **初始化階段**：
-   ```
-   用戶代碼 -> 創建回調實例 -> 添加到訓練器
-   ```
-
-2. **訓練啟動階段**：
-   ```
-   trainer.train() -> on_train_begin(model, logs) -> 各回調的初始化邏輯
-   ```
-
-3. **每個 Epoch 開始**：
-   ```
-   epoch 循環開始 -> on_epoch_begin(epoch, model, logs) -> 各回調的 epoch 開始邏輯
-   ```
-
-4. **每個 Batch 開始**：
-   ```
-   batch 循環開始 -> on_batch_begin(batch, model, inputs, targets, logs) -> 各回調的 batch 開始邏輯
-   ```
-
-5. **每個 Batch 結束**：
-   ```
-   batch 計算完成 -> on_batch_end(batch, model, inputs, targets, outputs, loss, logs) -> 各回調的 batch 結束邏輯
-   ```
-
-6. **每個 Epoch 結束**：
-   ```
-   epoch 循環結束 -> on_epoch_end(epoch, model, train_logs, val_logs, logs) -> 各回調的 epoch 結束邏輯
-   ```
-
-7. **訓練結束階段**：
-   ```
-   訓練完成 -> on_train_end(model, history, logs) -> 各回調的終結邏輯
-   ```
-
-### 4.3 測試方法
-
-為確保回調系統的穩定性和正確性，我們採用以下測試方法：
-
-#### 單元測試
-針對每個回調類的單獨功能進行測試
+負責載入和解析實驗的基本信息和訓練結果：
 
 ```python
-def test_data_drift_callback_initialization():
-    # 測試回調初始化
-    callback = DataDriftCallback(reference_data=torch.randn(100, 10))
-    assert callback.reference_data is not None
-    assert callback.drift_metrics == ['ks', 'psi', 'wasserstein']
+class ExperimentLoader:
+    def __init__(self, experiment_dir):
+        self.experiment_dir = experiment_dir
+    
+    def load_config(self):
+        """載入 config.json 中的實驗配置"""
+        with open(os.path.join(self.experiment_dir, 'config.json'), 'r') as f:
+            return json.load(f)
+    
+    def load_model_structure(self):
+        """載入 model_structure.json 中的模型結構信息"""
+        with open(os.path.join(self.experiment_dir, 'model_structure.json'), 'r') as f:
+            return json.load(f)
+    
+    def load_training_history(self):
+        """載入 training_history.json 中的訓練歷史記錄"""
+        with open(os.path.join(self.experiment_dir, 'training_history.json'), 'r') as f:
+            return json.load(f)
+    
+    def load_results(self):
+        """載入 results/results.json 中的最終結果摘要"""
+        results_path = os.path.join(self.experiment_dir, 'results', 'results.json')
+        if os.path.exists(results_path):
+            with open(results_path, 'r') as f:
+                return json.load(f)
+        return None
 ```
 
-#### 模擬環境測試
-使用模擬的訓練環境測試回調系統
+#### `HookDataLoader`
+
+負責載入和解析 hooks/ 目錄中的模型鉤子數據：
 
 ```python
-def test_callback_in_mock_environment():
-    # 創建模擬訓練器
-    trainer = MockTrainer()
-    model = create_simple_model()
-    trainer.set_model(model)
+class HookDataLoader:
+    def __init__(self, experiment_dir):
+        self.experiment_dir = experiment_dir
+        self.hooks_dir = os.path.join(experiment_dir, 'hooks')
     
-    # 添加回調
-    callback = DataDriftCallback(reference_data=torch.randn(100, 10))
-    trainer.add_callback(callback)
+    def load_training_summary(self):
+        """載入整體訓練摘要"""
+        return torch.load(os.path.join(self.hooks_dir, 'training_summary.pt'))
     
-    # 模擬訓練過程
-    logs = trainer.simulate_training(epochs=2, batches_per_epoch=5)
+    def load_evaluation_results(self, dataset='test'):
+        """載入評估結果"""
+        return torch.load(os.path.join(self.hooks_dir, f'evaluation_results_{dataset}.pt'))
     
-    # 驗證回調行為
-    assert callback.was_called_train_begin
-    assert callback.epoch_call_count == 2
+    def load_epoch_summary(self, epoch):
+        """載入特定輪次的摘要"""
+        return torch.load(os.path.join(self.hooks_dir, f'epoch_{epoch}', 'epoch_summary.pt'))
+    
+    def load_batch_data(self, epoch, batch):
+        """載入特定批次的數據"""
+        return torch.load(os.path.join(self.hooks_dir, f'epoch_{epoch}', f'batch_{batch}_data.pt'))
+    
+    def load_layer_activation(self, layer_name, epoch, batch):
+        """載入特定層在特定批次的激活值"""
+        pattern = f"{layer_name}_activation_batch_{batch}.pt"
+        path = os.path.join(self.hooks_dir, f'epoch_{epoch}', pattern)
+        if os.path.exists(path):
+            return torch.load(path)
+        return None
+    
+    def list_available_epochs(self):
+        """列出可用的輪次"""
+        return [int(d.split('_')[1]) for d in os.listdir(self.hooks_dir) 
+                if d.startswith('epoch_') and os.path.isdir(os.path.join(self.hooks_dir, d))]
+    
+    def list_available_layer_activations(self, epoch):
+        """列出特定輪次中可用的層激活值文件"""
+        epoch_dir = os.path.join(self.hooks_dir, f'epoch_{epoch}')
+        return [f for f in os.listdir(epoch_dir) if f.endswith('_activation_batch_0.pt')]
 ```
-
-#### 集成測試
-測試多個回調協同工作的情況
 
 ## 5. 開發環境與測試
 
@@ -262,9 +278,9 @@ def test_callback_in_mock_environment():
 # 創建並激活虛擬環境
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+# venv\Scripts\activate     # Windows (使用適合您 shell 的命令)
 
-# 安裝依賴
+# 安裝依賴 (確保 requirements.txt 已更新)
 pip install -r requirements.txt
 
 # 安裝開發模式
@@ -273,111 +289,77 @@ pip install -e .
 
 ### 5.2 測試環境
 
-為了便於測試即時回調功能，我們提供了模擬訓練環境：
+-   **測試框架**: 使用 `pytest`。
+-   **測試數據**: 在 `tests/test_data/` 目錄下創建模擬的實驗結果目錄結構和數據文件，參照 MicDysphagiaFramework 的輸出格式。
+-   **測試覆蓋率**: 目標是保持主要模組的測試覆蓋率在 80% 以上。
 
+```python
+# tests/test_data_loader.py 範例
+import pytest
+from sbp_analyzer.data_loader import ExperimentLoader, HookDataLoader
+
+def test_experiment_loader_loads_config(mock_experiment_dir):
+    loader = ExperimentLoader(mock_experiment_dir)
+    config = loader.load_config()
+    assert config is not None
+    assert 'experiment_name' in config
+    assert 'model' in config
+
+def test_hook_data_loader_loads_training_summary(mock_experiment_dir):
+    loader = HookDataLoader(mock_experiment_dir)
+    summary = loader.load_training_summary()
+    assert summary is not None
+    assert 'total_training_time' in summary
 ```
-tests/mock_framework/
-├── __init__.py
-├── mock_trainer.py    # 模擬訓練器
-└── mock_model.py      # 模擬模型
-```
 
-這使得我們可以在不依賴實際訓練框架的情況下測試回調功能。
+## 6. 最佳實踐
 
-### 5.3 調試工具
+### 6.1 數據處理與記憶體
 
-提供專用的調試腳本用於快速測試回調功能：
+1.  **延遲載入 (Lazy Loading)**: 對於大型的 hook 數據，僅在實際需要分析時才載入記憶體。
+2.  **抽樣 (Sampling)**: 對於大型激活值張量，提供抽樣選項以加速分析和視覺化。
+3.  **數據格式**: 內部盡量使用高效的數據結構 (如 Pandas DataFrame, NumPy arrays, PyTorch Tensors)。
 
-```
-scripts/
-├── debug_callback.py  # 測試特定回調
-└── run_mock_training.py  # 運行模擬訓練
-```
+### 6.2 模組化與可配置性
 
-## 6. 即時回調與離線分析比較
+1.  **解耦**: 分析器、載入器、指標計算、視覺化應盡量解耦，方便獨立測試和替換。
+2.  **配置**: 允許用戶通過接口參數或配置文件來自訂分析流程，例如選擇要運行的分析器、要計算的指標、要生成的圖表等。
 
-### 6.1 即時回調優勢
+### 6.3 錯誤處理與日誌
 
-1. **實時監測和干預**
-   - 可以在訓練過程中即時發現問題
-   - 能夠動態調整訓練參數（如學習率）
-   - 可以根據特定條件提前停止訓練（如過擬合）
+1.  **健壯性**: `DataLoader` 應能處理文件缺失或格式錯誤的情況，並提供有意義的錯誤訊息。
+2.  **日誌**: 在分析過程中記錄詳細的日誌，包括載入了哪些數據、執行了哪些分析、遇到的警告或錯誤等。
 
-2. **資源利用效率**
-   - 可以直接使用已載入記憶體的資料，無需額外 I/O 操作
-   - 避免儲存大量中間狀態，節省磁碟空間
+## 7. 開發指南
 
-3. **完整性**
-   - 可以捕捉訓練中每個批次的詳細資訊
-   - 能夠記錄一些可能不會被儲存的暫時狀態（如梯度）
+### 7.1 編碼規範
 
-### 6.2 離線分析優勢
+1.  遵循 PEP 8 風格指南。
+2.  為所有公共方法、類和模組提供清晰的 Docstrings (遵循如 Google 或 NumPy 風格)。
+3.  使用類型註解 (Type Hinting) 增強代碼可讀性和可靠性。
 
-1. **非侵入式**
-   - 不會影響模型訓練邏輯和效能
-   - 訓練與分析解耦，避免分析邏輯錯誤影響訓練
+### 7.2 測試規範
 
-2. **可重複性**
-   - 可以反覆分析同一訓練結果
-   - 便於比較不同分析方法或參數
+1.  為每個新功能或錯誤修復編寫單元測試。
+2.  確保測試涵蓋邊界條件和預期的錯誤情況。
+3.  定期運行測試套件並檢查覆蓋率報告。
 
-3. **延遲分析**
-   - 可在訓練完成後再進行複雜分析
-   - 適合運算資源有限的環境
+### 7.3 提交規範
 
-### 6.3 雙軌策略建議
+1.  遵循 Conventional Commits 規範或其他清晰的提交訊息格式。
+2.  每個提交應專注於一個邏輯單元 (如一個功能、一個修復)。
+3.  保持 Git 歷史清晰。
 
-我們建議採用雙軌並行的策略：
+## 8. 常見問題解答 (預期)
 
-1. **訓練中使用輕量級回調**：在訓練期間使用資源消耗較小的回調進行基本監控
-2. **訓練後進行深入分析**：在訓練完成後使用離線分析功能進行深入分析
+### Q: `SBP_analyzer` 是否支持非 MicDysphagiaFramework 產生的實驗結果？
+A: 初期會專注於支持 MicDysphagiaFramework 的輸出格式。未來計劃添加適配器，以支持其他框架 (如 PyTorch Lightning, TensorFlow) 的輸出格式。
 
-## 7. 最佳實踐
+### Q: 如何處理非常大的激活值數據文件？
+A: `HookDataLoader` 提供選項來僅載入數據的子集或進行抽樣。同時，分析器和視覺化模組也設計為能夠處理抽樣後的數據。
 
-### 7.1 記憶體管理
+### Q: 我可以添加自己的分析指標或視覺化方法嗎？
+A: 是的，設計目標之一就是提供可擴展的接口。用戶應該能夠繼承基礎類別 (如 `BaseAnalyzer`, `BaseMetricCalculator`, `BasePlotter`) 並註冊自己的實現。
 
-1. 避免在回調中長時間存儲大量張量
-2. 使用 `detach().cpu().numpy()` 將張量轉換為NumPy數組並移出GPU
-3. 實現滑動窗口機制，只保留最近N個批次的數據
-
-### 7.2 性能優化
-
-1. 使用 `monitoring_frequency` 參數控制回調執行頻率
-2. 對計算密集型操作使用批處理或抽樣
-3. 在非關鍵路徑（如epoch結束時）執行複雜分析
-
-### 7.3 錯誤處理
-
-1. 回調中包裝操作以捕獲異常，防止單個回調失敗導致整個訓練中斷
-2. 使用日誌記錄警告和錯誤，而不是直接拋出異常
-
-## 8. 開發指南
-
-### 8.1 編碼規範
-
-1. 遵循 PEP 8 風格指南
-2. 為所有公共方法和類提供文檔字符串
-3. 使用類型註解增強代碼可讀性
-
-### 8.2 測試規範
-
-1. 為每個新功能編寫單元測試
-2. 保持測試覆蓋率在80%以上
-3. 使用模擬對象減少外部依賴
-
-### 8.3 提交規範
-
-1. 每個提交專注於單一功能或修復
-2. 提交訊息應簡明扼要地描述變更
-3. 大型功能應分為多個較小的提交
-
-## 9. 常見問題解答
-
-### Q: 如何在沒有 TensorBoard 的情況下查看分析結果？
-A: 所有回調都支持將結果保存為CSV、JSON或圖像文件，可以使用任何數據可視化工具查看。
-
-### Q: 回調會影響訓練性能嗎？
-A: 為最小化性能影響，可以調整回調的 `monitoring_frequency` 參數，並確保計算密集型操作在非關鍵路徑上執行。
-
-### Q: 如何同時使用多個回調？
-A: 訓練器支持添加多個回調，它們將按添加順序依次執行。回調之間可以通過 `logs` 字典共享信息。
+### Q: 分析報告可以自訂嗎？
+A: `ReportGenerator` 將提供選項來自訂報告中包含的內容、順序和可能的格式。

@@ -1,8 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Documentation
-    url: https://github.com/JNRLEE/SBP_analyzer/wiki
-    about: Please check the documentation first before submitting an issue
-  - name: GitHub Community
-    url: https://github.com/JNRLEE/SBP_analyzer/discussions
-    about: Please ask and answer questions here 

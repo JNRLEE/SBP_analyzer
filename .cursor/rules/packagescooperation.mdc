@@ -1,0 +1,41 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+
+要求每個函式必須有標準化的 docstring，其中包含Args、Returns、Description、References。
+所有實驗執行程式需將 metadata 存入 experiments.log，並使用標準命名格式命名輸出圖像。
+每個訓練腳本都必須呼叫 torch.manual_seed 並在 requirements.txt 中記錄使用的所有套件版本。
+所有產生的圖片檔名必須包含實驗 ID 與產生圖檔的函式名稱。
+新增的套件必須立即更新至環境設定檔，例如 requirements.txt 或 Dockerfile。
+在做測試的時候請將相關程式碼跟結果保存在tests資料夾底下，測試的程式碼中docstring要完整記錄測試目的跟日期，並自動運行測試程式碼。
+GitHub專案位置：https://github.com/JNRLEE/angle_estimation_framework.git
+
+
+SBP_analyzer/是一包獨立的Package，請在修改程式碼的時候不要更動到模型架構，在對的位置修改對的程式碼
+├── SBP_analyzer/
+│   ├── __init__.py
+│   ├── callbacks/            # 回調類別
+│   │   ├── __init__.py
+│   │   ├── base_callback.py  # 基礎回調類 (可選)
+│   │   ├── tensorboard.py    # TensorBoard 相關回調
+│   │   └── data_monitor.py   # 數據監控相關回調 (如分佈)
+│   ├── inspection/           # 數據檢查工具
+│   │   ├── __init__.py
+│   │   ├── sampler.py        # 數據抽樣邏輯
+│   │   └── validator.py      # 數據驗證邏輯
+│   ├── visualization/        # 視覺化工具
+│   │   ├── __init__.py
+│   │   └── plotter.py        # 繪圖函數 (如繪製直方圖)
+│   ├── metrics/              # 指標計算
+│   │   ├── __init__.py
+│   │   └── distribution.py   # 計算數據分佈統計量
+│   └── utils/                # 共用工具函數
+│       └── __init__.py
+├── setup.py                  # 套件安裝設定檔
+├── requirements.txt          # 依賴套件
+└── README.md                 # 套件說明
