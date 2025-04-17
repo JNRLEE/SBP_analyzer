@@ -1,5 +1,9 @@
 # 基本依賴，根據實際使用的庫添加 (例如 torch, tensorflow)
-numpy
+numpy>=1.20.0
 tensorboard
 # matplotlib # 如果 visualization/plotter.py 需要
-# scipy     # 如果 metrics/distribution.py 需要
+scipy>=1.7.0
+pytest>=6.2.5
+pandas>=1.3.0
+tqdm>=4.62.0
+torch>=1.9.0
