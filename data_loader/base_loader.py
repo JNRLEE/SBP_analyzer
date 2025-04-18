@@ -1,107 +1,89 @@
 """
-# 基礎載入器類別
-# 定義載入器的基本接口和共用功能
+基礎數據載入器模組。
+
+此模組提供用於載入實驗數據的基礎類別。
+
+Classes:
+    BaseLoader: 所有數據載入器的基礎類別。
 """
 
-from abc import ABC, abstractmethod
-import logging
 import os
-from typing import Any, Dict, Optional
-
+import json
+import logging
+from abc import ABC, abstractmethod
+from typing import Dict, List, Any, Optional, Union
 
 class BaseLoader(ABC):
     """
-    數據載入器的基礎抽象類別，定義所有載入器的通用接口。
+    數據載入器的抽象基礎類別，提供通用接口和方法。
     
-    Args:
-        experiment_dir: 實驗結果目錄的路徑
-        log_level: 日誌級別，預設為 INFO
-        
-    Returns:
-        None
-        
-    Description:
-        此類別提供載入器的基本結構和通用功能，包括設置日誌和檢查目錄等。
-        子類應實現具體的數據載入邏輯。
-        
-    References:
-        None
+    這個類別定義了所有數據載入器共有的屬性和方法。子類別應重寫抽象方法來實現特定的數據載入功能。
+    
+    Attributes:
+        experiment_dir (str): 實驗結果的目錄路徑。
+        logger (logging.Logger): 日誌記錄器。
     """
     
-    def __init__(self, experiment_dir: str, log_level: int = logging.INFO):
-        self.experiment_dir = experiment_dir
-        self.logger = self._setup_logger(log_level)
-        
-        if not os.path.exists(experiment_dir):
-            self.logger.warning(f"實驗目錄 {experiment_dir} 不存在")
-        
-    def _setup_logger(self, log_level: int) -> logging.Logger:
+    def __init__(self, experiment_dir: str):
         """
-        設置載入器的日誌記錄器。
+        初始化基礎載入器。
         
         Args:
-            log_level: 日誌級別
-            
-        Returns:
-            logging.Logger: 設置好的日誌記錄器
-            
-        Description:
-            創建並配置一個日誌記錄器實例，用於記錄數據載入過程中的信息。
-            
-        References:
-            None
+            experiment_dir (str): 實驗結果的目錄路徑。
         """
-        logger = logging.getLogger(f"{self.__class__.__name__}")
-        logger.setLevel(log_level)
+        self.experiment_dir = experiment_dir
         
-        # 避免重複處理器
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-            
-        return logger
+        # 設置日誌
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # 確認實驗目錄是否存在
+        if not os.path.exists(experiment_dir):
+            self.logger.error(f"實驗目錄不存在: {experiment_dir}")
+            raise FileNotFoundError(f"實驗目錄不存在: {experiment_dir}")
     
     @abstractmethod
     def load(self, *args, **kwargs) -> Any:
         """
-        載入數據，這個方法需要被子類實現。
+        載入數據並返回結果。
         
-        Args:
-            *args: 位置參數
-            **kwargs: 關鍵字參數
-            
+        這是一個抽象方法，必須由子類實現。
+        
         Returns:
-            Any: 載入的數據
-            
-        Description:
-            此抽象方法定義了數據載入的基本接口，子類應實現具體的載入邏輯。
-            
-        References:
-            None
+            Any: 載入的數據。
         """
         pass
     
-    def check_file_exists(self, file_path: str) -> bool:
+    def _check_file_exists(self, file_path: str) -> bool:
         """
-        檢查文件是否存在，並記錄日誌。
+        檢查文件是否存在。
         
         Args:
-            file_path: 要檢查的文件路徑
-            
+            file_path (str): 文件路徑。
+        
         Returns:
-            bool: 文件是否存在
-            
-        Description:
-            檢查指定的文件是否存在，並適當地記錄日誌。
-            
-        References:
-            None
+            bool: 文件是否存在。
         """
         exists = os.path.exists(file_path)
         if not exists:
-            self.logger.warning(f"文件 {file_path} 不存在")
-        return exists 
+            self.logger.warning(f"文件不存在: {file_path}")
+        return exists
+    
+    def _load_json(self, file_path: str) -> Optional[Dict]:
+        """
+        載入JSON文件。
+        
+        Args:
+            file_path (str): JSON文件路徑。
+        
+        Returns:
+            Optional[Dict]: 載入的JSON數據，如果文件不存在或無法解析則返回None。
+        """
+        if not self._check_file_exists(file_path):
+            return None
+        
+        try:
+            with open(file_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            self.logger.error(f"載入JSON文件失敗: {e}")
+            return None 

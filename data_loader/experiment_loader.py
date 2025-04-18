@@ -1,193 +1,141 @@
 """
-# 實驗載入器
-# 用於載入實驗的基本信息和訓練結果
+實驗數據載入器模組。
+
+此模組提供用於載入實驗基本數據的功能，包括配置、模型結構和訓練歷史記錄。
+
+Classes:
+    ExperimentLoader: 載入實驗基本數據的類別。
 """
 
+import os
 import json
 import logging
-import os
-from typing import Dict, Any, Optional, List
+from typing import Dict, List, Any, Optional, Union
 
 from .base_loader import BaseLoader
 
-
 class ExperimentLoader(BaseLoader):
     """
-    實驗數據載入器，用於載入和解析實驗的基本信息和訓練結果。
+    實驗數據載入器，用於載入實驗的基本信息和訓練結果。
     
-    Args:
-        experiment_dir: 實驗結果目錄的路徑
-        log_level: 日誌級別，預設為 INFO
-        
-    Returns:
-        None
-        
-    Description:
-        此類別負責載入實驗配置、模型結構、訓練歷史和最終結果等數據。
-        
-    References:
-        None
+    此載入器可以載入實驗目錄中的config.json、model_structure.json和training_history.json等文件。
+    
+    Attributes:
+        experiment_dir (str): 實驗結果的目錄路徑。
+        config (Dict): 實驗配置。
+        model_structure (Dict): 模型結構信息。
+        training_history (Dict): 訓練歷史記錄。
+        results (Dict): 結果摘要。
     """
     
-    def __init__(self, experiment_dir: str, log_level: int = logging.INFO):
-        super().__init__(experiment_dir, log_level)
-    
-    def load(self, data_type: str, **kwargs) -> Any:
+    def __init__(self, experiment_dir: str):
         """
-        根據指定的數據類型載入相應的數據。
+        初始化實驗數據載入器。
         
         Args:
-            data_type: 要載入的數據類型，可選值為 'config', 'model_structure', 'training_history', 'results'
-            **kwargs: 額外的參數
-            
-        Returns:
-            Any: 載入的數據
-            
-        Description:
-            根據指定的數據類型調用相應的載入方法，並返回載入的數據。
-            
-        References:
-            None
+            experiment_dir (str): 實驗結果的目錄路徑。
         """
-        if data_type == 'config':
-            return self.load_config()
-        elif data_type == 'model_structure':
-            return self.load_model_structure()
-        elif data_type == 'training_history':
-            return self.load_training_history()
-        elif data_type == 'results':
-            return self.load_results()
-        else:
-            self.logger.error(f"未知的數據類型：{data_type}")
-            return None
+        super().__init__(experiment_dir)
+        self.config = None
+        self.model_structure = None
+        self.training_history = None
+        self.results = None
     
-    def load_config(self) -> Optional[Dict[str, Any]]:
+    def load(self, load_config: bool = True, load_model_structure: bool = True, 
+             load_training_history: bool = True, load_results: bool = True) -> Dict:
         """
-        載入 config.json 中的實驗配置。
+        載入實驗數據。
         
         Args:
-            None
-            
+            load_config (bool, optional): 是否載入配置。默認為True。
+            load_model_structure (bool, optional): 是否載入模型結構。默認為True。
+            load_training_history (bool, optional): 是否載入訓練歷史。默認為True。
+            load_results (bool, optional): 是否載入結果摘要。默認為True。
+        
         Returns:
-            Optional[Dict[str, Any]]: 實驗配置數據，如果文件不存在則返回 None
-            
-        Description:
-            從實驗目錄中的 config.json 文件載入實驗配置數據。
-            
-        References:
-            None
+            Dict: 包含載入數據的字典。
+        """
+        result = {}
+        
+        if load_config:
+            self.config = self.load_config()
+            result['config'] = self.config
+        
+        if load_model_structure:
+            self.model_structure = self.load_model_structure()
+            result['model_structure'] = self.model_structure
+        
+        if load_training_history:
+            self.training_history = self.load_training_history()
+            result['training_history'] = self.training_history
+        
+        if load_results:
+            self.results = self.load_results()
+            result['results'] = self.results
+        
+        return result
+    
+    def load_config(self) -> Optional[Dict]:
+        """
+        載入config.json中的實驗配置。
+        
+        Returns:
+            Optional[Dict]: 包含配置的字典，如果文件不存在則返回None。
         """
         config_path = os.path.join(self.experiment_dir, 'config.json')
-        if self.check_file_exists(config_path):
-            try:
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                self.logger.info(f"成功載入配置文件 {config_path}")
-                return config
-            except Exception as e:
-                self.logger.error(f"載入配置文件時出錯：{str(e)}")
-        return None
+        return self._load_json(config_path)
     
-    def load_model_structure(self) -> Optional[Dict[str, Any]]:
+    def load_model_structure(self) -> Optional[Dict]:
         """
-        載入 model_structure.json 中的模型結構信息。
+        載入model_structure.json中的模型結構信息。
         
-        Args:
-            None
-            
         Returns:
-            Optional[Dict[str, Any]]: 模型結構數據，如果文件不存在則返回 None
-            
-        Description:
-            從實驗目錄中的 model_structure.json 文件載入模型結構信息。
-            
-        References:
-            None
+            Optional[Dict]: 包含模型結構的字典，如果文件不存在則返回None。
         """
         structure_path = os.path.join(self.experiment_dir, 'model_structure.json')
-        if self.check_file_exists(structure_path):
-            try:
-                with open(structure_path, 'r', encoding='utf-8') as f:
-                    structure = json.load(f)
-                self.logger.info(f"成功載入模型結構文件 {structure_path}")
-                return structure
-            except Exception as e:
-                self.logger.error(f"載入模型結構文件時出錯：{str(e)}")
-        return None
+        return self._load_json(structure_path)
     
-    def load_training_history(self) -> Optional[Dict[str, Any]]:
+    def load_training_history(self) -> Optional[Dict]:
         """
-        載入 training_history.json 中的訓練歷史記錄。
+        載入training_history.json中的訓練歷史記錄。
         
-        Args:
-            None
-            
         Returns:
-            Optional[Dict[str, Any]]: 訓練歷史數據，如果文件不存在則返回 None
-            
-        Description:
-            從實驗目錄中的 training_history.json 文件載入訓練歷史記錄。
-            
-        References:
-            None
+            Optional[Dict]: 包含訓練歷史的字典，如果文件不存在則返回None。
         """
         history_path = os.path.join(self.experiment_dir, 'training_history.json')
-        if self.check_file_exists(history_path):
-            try:
-                with open(history_path, 'r', encoding='utf-8') as f:
-                    history = json.load(f)
-                self.logger.info(f"成功載入訓練歷史文件 {history_path}")
-                return history
-            except Exception as e:
-                self.logger.error(f"載入訓練歷史文件時出錯：{str(e)}")
-        return None
+        return self._load_json(history_path)
     
-    def load_results(self) -> Optional[Dict[str, Any]]:
+    def load_results(self) -> Optional[Dict]:
         """
-        載入 results/results.json 中的最終結果摘要。
+        載入results/results.json中的最終結果摘要。
         
-        Args:
-            None
-            
         Returns:
-            Optional[Dict[str, Any]]: 最終結果數據，如果文件不存在則返回 None
-            
-        Description:
-            從實驗目錄中的 results/results.json 文件載入最終結果摘要。
-            
-        References:
-            None
+            Optional[Dict]: 包含結果摘要的字典，如果文件不存在則返回None。
         """
         results_path = os.path.join(self.experiment_dir, 'results', 'results.json')
-        if self.check_file_exists(results_path):
-            try:
-                with open(results_path, 'r', encoding='utf-8') as f:
-                    results = json.load(f)
-                self.logger.info(f"成功載入結果文件 {results_path}")
-                return results
-            except Exception as e:
-                self.logger.error(f"載入結果文件時出錯：{str(e)}")
-        return None
+        return self._load_json(results_path)
     
-    def list_available_models(self) -> List[str]:
+    def get_experiment_info(self) -> Dict:
         """
-        列出 models/ 目錄中可用的模型檢查點文件。
+        獲取實驗的基本信息。
         
-        Args:
-            None
-            
         Returns:
-            List[str]: 可用的模型檢查點文件列表
-            
-        Description:
-            掃描實驗目錄中的 models/ 子目錄，並返回所有 .pth 文件的列表。
-            
-        References:
-            None
+            Dict: 包含實驗信息的字典。
         """
-        models_dir = os.path.join(self.experiment_dir, 'models')
-        if not os.path.exists(models_dir):
-            self.logger.warning(f"模型目錄 {models_dir} 不存在")
-            return []
+        if not self.config:
+            self.config = self.load_config()
         
-        return [f for f in os.listdir(models_dir) if f.endswith('.pth')] 
+        info = {
+            'experiment_name': os.path.basename(self.experiment_dir),
+            'experiment_dir': self.experiment_dir
+        }
+        
+        if self.config:
+            info.update({
+                'model_name': self.config.get('model', {}).get('name', 'Unknown'),
+                'dataset': self.config.get('dataset', {}).get('name', 'Unknown'),
+                'task_type': self.config.get('task', {}).get('type', 'Unknown'),
+                'created_at': self.config.get('created_at', 'Unknown')
+            })
+        
+        return info 

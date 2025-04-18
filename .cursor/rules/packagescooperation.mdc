@@ -5,16 +5,45 @@ alwaysApply: true
 ---
 
 # Your rule content
-1. 要求所有模組和函數都使用標準化的 docstring 格式，其中包含Args、Returns、Description、References。
-2. 所有實驗執行程式需將 metadata 存入 experiments.log，並使用標準命名格式命名輸出圖像。
-3. 每個訓練腳本都必須呼叫 torch.manual_seed 並在 requirements.txt 中記錄使用的所有套件版本。
-4. 所有產生的圖片檔名必須包含實驗 ID 與產生圖檔的函式名稱。
-5. 新增的套件必須立即更新至環境設定檔，例如 requirements.txt 或 Dockerfile。
-6. 在做測試的時候請將相關程式碼跟結果保存在tests資料夾底下，測試的程式碼中docstring要完整記錄測試目的跟日期，並自動運行測試程式碼。
-7. 要跟Github互動時，如果要發Pull Request必須先執行完測試，然後要先發在branch中
 
-GitHub專案位置：https://github.com/JNRLEE/SBP_analyzer.git
-不要任意破壞Project主架構跟分類
+
+## Documentation Standards
+1. All modules and functions must use standardized docstring format including:
+   - Args
+   - Returns
+   - Description
+   - References
+
+## Experiment Tracking
+1. All experiment execution programs must:
+   - Save metadata to experiments.log
+   - Use standardized naming conventions for output images
+   - Include experiment ID and function name in all generated image filenames
+
+## Reproducibility
+1. Every training script must:
+   - Call torch.manual_seed
+   - Document all package versions in requirements.txt
+
+## Dependency Management
+1. Newly added packages must be immediately updated in environment configuration files:
+   - requirements.txt
+   - Dockerfile
+
+## Testing Procedures
+1. Store all test-related code and results in the tests folder
+2. Test code docstrings must fully document:
+   - Test purpose
+   - Test date
+3. Tests must run automatically
+
+## GitHub Workflow（https://github.com/JNRLEE/SBP_analyzer.git）
+1. When interacting with GitHub:
+   - Complete all tests before creating Pull Requests
+   - Always create Pull Requests to branches first
+
+## Project Structure
+The project structure should be maintained according to:
 SBP_analyzer/
 ├── analyzer/                    # 核心分析邏輯
 │   ├── __init__.py

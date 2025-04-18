@@ -47,30 +47,16 @@ SBP_analyzer/
 
 ## 主要功能
 
-*   **數據載入**: 從 MicDysphagiaFramework 實驗結果目錄載入配置、模型結構、訓練歷史和 hook 數據。
-*   **模型結構分析**: 解析並視覺化 model_structure.json 中的模型架構和參數分布。
-*   **訓練動態分析**: 分析 training_history.json 中的損失函數和評估指標的趨勢和穩定性。
-*   **中間層數據分析**: 分析 hooks/ 目錄中儲存的模型內部激活值的分佈和統計特性。
-*   **視覺化**: 提供多種圖表來展示分析結果。
-*   **報告生成**: 自動生成結構化的分析報告 (HTML/Markdown)。
-
-## 開發進度
-
-目前已完成**階段一**開發：
-
-- ✅ **基礎架構**: 已實現所有核心目錄結構和基礎抽象類別。
-- ✅ **數據載入功能**: 已實現 `ExperimentLoader` 和 `HookDataLoader`，可載入 MicDysphagiaFramework 格式的實驗數據。
-- ✅ **基礎指標計算**: 已實現基本的分佈統計量計算。
-- ✅ **基礎視覺化**: 已實現直方圖、箱形圖和學習曲線的視覺化。
-- ✅ **基礎分析接口**: 已實現 `SBPAnalyzer` 主接口，提供高級的分析方法和報告生成。
-- ✅ **測試框架**: 已設置 `pytest` 環境並編寫數據載入器的單元測試。
-- ✅ **實用工具**: 已實現文件操作和張量處理的通用工具。
-
-下一階段（階段二）將專注於實現更高級的分析功能，包括模型結構分析、訓練動態詳細分析和完善報告生成器。
+* **數據載入**: 從 MicDysphagiaFramework 實驗結果目錄（/Users/jnrle/Library/CloudStorage/GoogleDrive-jenner.lee.com@gmail.com/My Drive/MicforDysphagia/ProjectDeveloper/SBP_analyzer/results）載入配置、模型結構、訓練歷史和 hook 數據。
+* **模型結構分析**: 解析並視覺化 model_structure.json 中的模型架構和參數分布。
+* **訓練動態分析**: 分析 training_history.json 中的損失函數和評估指標的趨勢和穩定性。
+* **中間層數據分析**: 分析 hooks/ 目錄中儲存的模型內部激活值的分佈和統計特性。
+* **視覺化**: 提供多種圖表來展示分析結果。
+* **報告生成**: 自動生成結構化的分析報告 (HTML/Markdown)。
 
 ## 支持的數據結構
 
-SBP Analyzer 專為分析以下 MicDysphagiaFramework 產生的實驗結果目錄結構設計：
+SBP Analyzer 專為分析以下 MicDysphagiaFramework 產生的實驗結果目錄（/Users/jnrle/Library/CloudStorage/GoogleDrive-jenner.lee.com@gmail.com/My Drive/MicforDysphagia/ProjectDeveloper/SBP_analyzer/results）結構設計：
 
 ```
 results/

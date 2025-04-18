@@ -1,10 +1,16 @@
 """
-# 用戶接口模組
-# 提供與使用者互動的高級接口。
+接口模組包。
 
-此模組包含分析器的主接口，用於啟動分析流程和產生報告。
+此模組包含用於整合各種分析器並提供統一接口的功能。
+
+Classes:
+    SBPAnalyzer: SBP分析器的主接口類別。
+    AnalysisResults: 封裝分析結果的類別。
 """
 
-from .analyzer_interface import SBPAnalyzer
+from .analyzer_interface import SBPAnalyzer, AnalysisResults
 
-__all__ = ['SBPAnalyzer'] 
+__all__ = [
+    'SBPAnalyzer',
+    'AnalysisResults'
+]

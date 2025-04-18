@@ -1,466 +1,280 @@
 """
-# 分析器接口
-# 提供分析器的主接口類別
+分析器接口模組。
+
+此模組提供用於整合各種分析器並提供統一接口的功能。
+
+Classes:
+    SBPAnalyzer: SBP分析器的主接口類別。
+    AnalysisResults: 封裝分析結果的類別。
 """
 
-import logging
 import os
-from typing import Dict, List, Any, Optional, Union
+import logging
+from typing import Dict, List, Any, Optional, Union, Set
 
-from data_loader import ExperimentLoader, HookDataLoader
-from utils.file_utils import ensure_dir, get_experiment_id
+from sbp_analyzer.analyzer import (
+    ModelStructureAnalyzer,
+    TrainingDynamicsAnalyzer,
+    IntermediateDataAnalyzer
+)
+from sbp_analyzer.data_loader import ExperimentLoader, HookDataLoader
+from sbp_analyzer.reporter import ReportGenerator
 
+class AnalysisResults:
+    """
+    封裝分析結果的類別。
+    
+    此類別用於整合和存儲來自不同分析器的分析結果，並提供方便的訪問方法。
+    
+    Attributes:
+        model_structure_results (Dict): 模型結構分析結果。
+        training_dynamics_results (Dict): 訓練動態分析結果。
+        intermediate_data_results (Dict): 中間層數據分析結果。
+        plots (Dict[str, Any]): 生成的圖表。
+    """
+    
+    def __init__(self):
+        """
+        初始化分析結果對象。
+        """
+        self.model_structure_results = {}
+        self.training_dynamics_results = {}
+        self.intermediate_data_results = {}
+        self.plots = {}
+        self.logger = logging.getLogger(self.__class__.__name__)
+    
+    def add_model_structure_results(self, results: Dict) -> None:
+        """
+        添加模型結構分析結果。
+        
+        Args:
+            results (Dict): 模型結構分析結果。
+        """
+        self.model_structure_results = results
+    
+    def add_training_dynamics_results(self, results: Dict) -> None:
+        """
+        添加訓練動態分析結果。
+        
+        Args:
+            results (Dict): 訓練動態分析結果。
+        """
+        self.training_dynamics_results = results
+    
+    def add_intermediate_data_results(self, results: Dict) -> None:
+        """
+        添加中間層數據分析結果。
+        
+        Args:
+            results (Dict): 中間層數據分析結果。
+        """
+        self.intermediate_data_results = results
+    
+    def add_plot(self, name: str, plot: Any) -> None:
+        """
+        添加圖表。
+        
+        Args:
+            name (str): 圖表名稱。
+            plot (Any): 圖表對象。
+        """
+        self.plots[name] = plot
+    
+    def get_model_summary(self) -> Dict:
+        """
+        獲取模型摘要。
+        
+        Returns:
+            Dict: 模型摘要字典。
+        """
+        if not self.model_structure_results:
+            self.logger.warning("模型結構分析結果不可用")
+            return {}
+        
+        return {
+            'model_name': self.model_structure_results.get('model_name', 'Unknown'),
+            'total_params': self.model_structure_results.get('total_params', 0),
+            'trainable_params': self.model_structure_results.get('trainable_params', 0),
+            'layer_count': self.model_structure_results.get('layer_count', 0)
+        }
+    
+    def get_plot(self, name: str) -> Optional[Any]:
+        """
+        獲取指定名稱的圖表。
+        
+        Args:
+            name (str): 圖表名稱。
+        
+        Returns:
+            Optional[Any]: 圖表對象，如果不存在則返回None。
+        """
+        return self.plots.get(name)
+    
+    def get_activation_distribution(self, layer_name: str, epoch: int) -> Optional[Dict]:
+        """
+        獲取特定層在特定輪次的激活值分布。
+        
+        Args:
+            layer_name (str): 層的名稱。
+            epoch (int): 輪次。
+        
+        Returns:
+            Optional[Dict]: 分布數據字典，如果不存在則返回None。
+        """
+        if not self.intermediate_data_results or 'layer_results' not in self.intermediate_data_results:
+            self.logger.warning("中間層數據分析結果不可用")
+            return None
+        
+        layer_results = self.intermediate_data_results['layer_results'].get(layer_name, {})
+        if not layer_results or 'distribution' not in layer_results:
+            self.logger.warning(f"層 {layer_name} 的結果不可用")
+            return None
+        
+        return layer_results['distribution'].get(epoch)
+    
+    def to_dict(self) -> Dict:
+        """
+        將分析結果轉換為字典。
+        
+        Returns:
+            Dict: 包含所有分析結果的字典。
+        """
+        return {
+            'model_structure': self.model_structure_results,
+            'training_dynamics': self.training_dynamics_results,
+            'intermediate_data': self.intermediate_data_results
+        }
 
 class SBPAnalyzer:
     """
-    SBPAnalyzer 的主接口類別，用於啟動分析流程。
+    SBP分析器的主接口類別。
     
-    Args:
-        experiment_dir: 實驗結果目錄的路徑
-        output_dir: 輸出目錄，預設為 "analysis_results"
-        log_level: 日誌級別，預設為 INFO
-        
-    Returns:
-        None
-        
-    Description:
-        此類別協調不同的分析器組件，載入數據，執行分析，並產生報告。
-        
-    References:
-        None
+    此類別整合了各種分析器，提供了統一的接口來執行分析和生成報告。
+    
+    Attributes:
+        experiment_dir (str): 實驗結果的目錄路徑。
+        experiment_loader (ExperimentLoader): 實驗數據載入器。
+        hook_loader (HookDataLoader): Hook數據載入器。
+        model_structure_analyzer (ModelStructureAnalyzer): 模型結構分析器。
+        training_dynamics_analyzer (TrainingDynamicsAnalyzer): 訓練動態分析器。
+        intermediate_data_analyzer (IntermediateDataAnalyzer): 中間層數據分析器。
+        report_generator (ReportGenerator): 報告生成器。
+        results (AnalysisResults): 分析結果。
     """
     
-    def __init__(
-        self,
-        experiment_dir: str,
-        output_dir: str = "analysis_results",
-        log_level: int = logging.INFO
-    ):
+    def __init__(self, experiment_dir: str):
+        """
+        初始化SBP分析器。
+        
+        Args:
+            experiment_dir (str): 實驗結果的目錄路徑。
+        """
         self.experiment_dir = experiment_dir
-        self.output_dir = output_dir
-        self.logger = self._setup_logger(log_level)
-        self.results = {}
-        self.experiment_id = get_experiment_id(experiment_dir)
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # 確認實驗目錄是否存在
+        if not os.path.exists(experiment_dir):
+            self.logger.error(f"實驗目錄不存在: {experiment_dir}")
+            raise FileNotFoundError(f"實驗目錄不存在: {experiment_dir}")
         
         # 初始化數據載入器
-        self.experiment_loader = ExperimentLoader(experiment_dir, log_level)
-        self.hook_loader = HookDataLoader(experiment_dir, log_level)
+        self.experiment_loader = ExperimentLoader(experiment_dir)
+        self.hook_loader = HookDataLoader(experiment_dir)
         
-        # 確保輸出目錄存在
-        ensure_dir(output_dir)
+        # 初始化分析器
+        self.model_structure_analyzer = ModelStructureAnalyzer(experiment_dir)
+        self.training_dynamics_analyzer = TrainingDynamicsAnalyzer(experiment_dir)
+        self.intermediate_data_analyzer = IntermediateDataAnalyzer(experiment_dir)
         
-        self.logger.info(f"初始化 SBPAnalyzer，實驗目錄: {experiment_dir}，輸出目錄: {output_dir}")
+        # 初始化報告生成器
+        self.report_generator = None  # 將在generate_report方法中初始化
+        
+        # 初始化結果對象
+        self.results = AnalysisResults()
     
-    def _setup_logger(self, log_level: int) -> logging.Logger:
+    def analyze(self, analyze_model_structure: bool = True, 
+                analyze_training_history: bool = True, 
+                analyze_hooks: bool = True,
+                epochs: Optional[List[int]] = None,
+                layers: Optional[List[str]] = None,
+                batch: int = 0,
+                save_results: bool = True) -> AnalysisResults:
         """
-        設置日誌記錄器。
+        執行分析。
         
         Args:
-            log_level: 日誌級別
-            
+            analyze_model_structure (bool, optional): 是否分析模型結構。默認為True。
+            analyze_training_history (bool, optional): 是否分析訓練歷史。默認為True。
+            analyze_hooks (bool, optional): 是否分析hook數據。默認為True。
+            epochs (List[int], optional): 要分析的輪次列表。如果為None，則分析所有可用輪次。
+            layers (List[str], optional): 要分析的層列表。如果為None，則分析所有可用層。
+            batch (int, optional): 要分析的批次索引。默認為0。
+            save_results (bool, optional): 是否保存分析結果。默認為True。
+        
         Returns:
-            logging.Logger: 設置好的日誌記錄器
-            
-        Description:
-            創建並配置一個日誌記錄器實例，用於記錄分析過程中的信息。
-            
-        References:
-            None
+            AnalysisResults: 分析結果對象。
         """
-        logger = logging.getLogger("SBPAnalyzer")
-        logger.setLevel(log_level)
+        self.logger.info(f"開始分析實驗: {os.path.basename(self.experiment_dir)}")
         
-        # 避免重複處理器
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-        
-        return logger
-    
-    def analyze(
-        self,
-        analyze_model_structure: bool = True,
-        analyze_training_history: bool = True,
-        analyze_hooks: bool = False,
-        epochs: Optional[List[int]] = None,
-        layers: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        """
-        執行分析流程。
-        
-        Args:
-            analyze_model_structure: 是否分析模型結構
-            analyze_training_history: 是否分析訓練歷史
-            analyze_hooks: 是否分析模型鉤子數據
-            epochs: 要分析的特定輪次列表，如果為 None 則分析所有可用輪次
-            layers: 要分析的特定層名稱列表，如果為 None 則分析所有可用層
-            
-        Returns:
-            Dict[str, Any]: 分析結果字典
-            
-        Description:
-            協調不同的分析器組件，根據指定的參數執行相應的分析任務。
-            
-        References:
-            None
-        """
-        self.logger.info("開始分析流程")
-        
-        # 根據指定的分析選項執行分析
+        # 分析模型結構
         if analyze_model_structure:
-            self._analyze_model_structure()
+            self.logger.info("分析模型結構...")
+            model_structure_results = self.model_structure_analyzer.analyze(save_results=save_results)
+            self.results.add_model_structure_results(model_structure_results)
         
+        # 分析訓練歷史
         if analyze_training_history:
-            self._analyze_training_history()
+            self.logger.info("分析訓練動態...")
+            training_dynamics_results = self.training_dynamics_analyzer.analyze(save_results=save_results)
+            self.results.add_training_dynamics_results(training_dynamics_results)
         
+        # 分析Hook數據
         if analyze_hooks:
-            self._analyze_hooks(epochs, layers)
+            self.logger.info("分析中間層數據...")
+            intermediate_data_results = self.intermediate_data_analyzer.analyze(
+                layers=layers, 
+                epochs=epochs, 
+                batch=batch, 
+                save_results=save_results
+            )
+            self.results.add_intermediate_data_results(intermediate_data_results)
         
-        self.logger.info("分析流程完成")
-        
+        self.logger.info("分析完成")
         return self.results
     
-    def _analyze_model_structure(self) -> None:
-        """
-        分析模型結構。
-        
-        Args:
-            None
-            
-        Returns:
-            None
-            
-        Description:
-            載入模型結構數據，並執行結構分析。
-            
-        References:
-            None
-        """
-        self.logger.info("分析模型結構")
-        
-        # 載入模型結構
-        model_structure = self.experiment_loader.load(data_type='model_structure')
-        if model_structure:
-            # 簡單的結構摘要
-            self.results['model_structure'] = model_structure
-            self.logger.info(f"載入了模型結構數據: {len(model_structure) if model_structure else 0} 個鍵")
-        else:
-            self.logger.warning("未能載入模型結構數據")
-    
-    def _analyze_training_history(self) -> None:
-        """
-        分析訓練歷史。
-        
-        Args:
-            None
-            
-        Returns:
-            None
-            
-        Description:
-            載入並分析訓練歷史數據，包括損失曲線和指標趨勢。
-            
-        References:
-            None
-        """
-        self.logger.info("分析訓練歷史")
-        
-        # 載入訓練歷史
-        training_history = self.experiment_loader.load(data_type='training_history')
-        if training_history:
-            # 存儲原始數據
-            self.results['training_history'] = training_history
-            
-            # 計算一些基本的指標
-            metrics_summary = {}
-            for metric_name, values in training_history.items():
-                if isinstance(values, list) and values:
-                    # 對於數值型指標，計算均值和範圍
-                    try:
-                        metrics_summary[metric_name] = {
-                            'mean': sum(values) / len(values),
-                            'min': min(values),
-                            'max': max(values),
-                            'start': values[0],
-                            'end': values[-1],
-                            'improvement': values[0] - values[-1] if 'loss' in metric_name.lower() else values[-1] - values[0]
-                        }
-                    except (TypeError, ValueError):
-                        # 跳過非數值型數據
-                        pass
-            
-            self.results['metrics_summary'] = metrics_summary
-            self.logger.info(f"載入並分析了訓練歷史數據: {len(training_history) if training_history else 0} 個指標")
-        else:
-            self.logger.warning("未能載入訓練歷史數據")
-    
-    def _analyze_hooks(
-        self,
-        epochs: Optional[List[int]] = None,
-        layers: Optional[List[str]] = None
-    ) -> None:
-        """
-        分析模型鉤子數據。
-        
-        Args:
-            epochs: 要分析的特定輪次列表
-            layers: 要分析的特定層名稱列表
-            
-        Returns:
-            None
-            
-        Description:
-            載入並分析模型鉤子數據，包括激活值和中間層輸出。
-            
-        References:
-            None
-        """
-        self.logger.info("分析模型鉤子數據")
-        
-        # 確定要分析的輪次
-        available_epochs = self.hook_loader.list_available_epochs()
-        if not available_epochs:
-            self.logger.warning("未找到可用的鉤子數據輪次")
-            return
-        
-        if epochs is None:
-            # 如果未指定，使用所有可用輪次
-            epochs_to_analyze = available_epochs
-        else:
-            # 篩選出可用的輪次
-            epochs_to_analyze = [e for e in epochs if e in available_epochs]
-            if not epochs_to_analyze:
-                self.logger.warning(f"指定的輪次 {epochs} 不可用，可用的輪次為: {available_epochs}")
-                return
-        
-        # 分析每個輪次的鉤子數據
-        hooks_results = {}
-        for epoch in epochs_to_analyze:
-            epoch_summary = self.hook_loader.load(data_type='epoch_summary', epoch=epoch)
-            if epoch_summary:
-                hooks_results[f'epoch_{epoch}'] = {'summary': epoch_summary}
-                
-                # 確定要分析的層
-                available_layers = self.hook_loader.list_available_layer_activations(epoch)
-                if not available_layers:
-                    self.logger.warning(f"輪次 {epoch} 未找到可用的層激活值數據")
-                    continue
-                
-                if layers is None:
-                    # 如果未指定，使用所有可用層
-                    layers_to_analyze = available_layers
-                else:
-                    # 篩選出可用的層
-                    layers_to_analyze = [l for l in layers if l in available_layers]
-                    if not layers_to_analyze:
-                        self.logger.warning(f"指定的層 {layers} 不可用，可用的層為: {available_layers}")
-                        continue
-                
-                # 分析每個層的激活值
-                for layer in layers_to_analyze:
-                    layer_data = self.hook_loader.load(
-                        data_type='layer_activation',
-                        layer_name=layer,
-                        epoch=epoch,
-                        batch=0  # 僅分析第 0 批次
-                    )
-                    if layer_data is not None:
-                        # 使用 tensor_utils 計算張量統計量
-                        # 這裡只是簡單地存儲層數據，實際應用中可能會有更複雜的分析
-                        hooks_results[f'epoch_{epoch}'][layer] = {
-                            'shape': layer_data.shape,
-                            'type': str(layer_data.dtype),
-                            # 這裡可以添加其他分析結果
-                        }
-        
-        self.results['hooks_analysis'] = hooks_results
-        self.logger.info(f"完成對 {len(epochs_to_analyze)} 個輪次的鉤子數據分析")
-    
-    def generate_report(
-        self,
-        output_dir: Optional[str] = None,
-        report_format: str = 'markdown'
-    ) -> str:
+    def generate_report(self, output_dir: str, report_format: str = 'html') -> str:
         """
         生成分析報告。
         
         Args:
-            output_dir: 報告輸出目錄，如果為 None 則使用默認的輸出目錄
-            report_format: 報告格式，可選值為 'markdown', 'html'
-            
+            output_dir (str): 輸出目錄路徑。
+            report_format (str, optional): 報告格式，可選 'html' 或 'markdown'。默認為'html'。
+        
         Returns:
-            str: 報告文件的路徑
-            
-        Description:
-            根據分析結果生成結構化的報告，可以選擇不同的輸出格式。
-            
-        References:
-            None
+            str: 報告文件路徑。
         """
-        self.logger.info(f"生成 {report_format} 格式的報告")
+        from sbp_analyzer.reporter import ReportGenerator
         
-        # 使用指定的輸出目錄或默認目錄
-        output_dir = output_dir or self.output_dir
-        ensure_dir(output_dir)
+        self.logger.info(f"生成 {report_format} 格式的分析報告...")
         
-        # 根據報告格式選擇檔案副檔名
-        extension = '.md' if report_format == 'markdown' else '.html'
-        report_filename = f"analysis_report{extension}"
+        # 如果還沒有執行分析，則先執行
+        if not (self.results.model_structure_results or 
+                self.results.training_dynamics_results or 
+                self.results.intermediate_data_results):
+            self.logger.warning("還沒有執行分析，先執行分析...")
+            self.analyze()
         
-        # 如果有實驗 ID，將其加入檔名
-        if self.experiment_id:
-            report_filename = f"{self.experiment_id}_analysis_report{extension}"
+        # 初始化報告生成器
+        self.report_generator = ReportGenerator(
+            experiment_name=os.path.basename(self.experiment_dir),
+            output_dir=output_dir
+        )
         
-        report_path = os.path.join(output_dir, report_filename)
+        # 生成報告
+        report_path = self.report_generator.generate(
+            results=self.results,
+            format=report_format
+        )
         
-        # 生成報告內容
-        content = self._generate_report_content(report_format)
-        
-        # 寫入檔案
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        self.logger.info(f"報告已保存至: {report_path}")
-        return report_path
-    
-    def _generate_report_content(self, report_format: str) -> str:
-        """
-        生成報告內容。
-        
-        Args:
-            report_format: 報告格式，可選值為 'markdown', 'html'
-            
-        Returns:
-            str: 報告內容
-            
-        Description:
-            根據分析結果生成報告內容，可以選擇不同的輸出格式。
-            
-        References:
-            None
-        """
-        # 報告標題
-        title = f"SBP Analyzer 分析報告" + (f" - {self.experiment_id}" if self.experiment_id else "")
-        
-        # 根據不同格式生成內容
-        if report_format == 'markdown':
-            content = f"# {title}\n\n"
-            
-            # 基本信息部分
-            content += "## 基本信息\n\n"
-            content += f"- 實驗目錄: `{self.experiment_dir}`\n"
-            content += f"- 分析時間: {logging._startTime}\n\n"
-            
-            # 配置信息
-            config = self.experiment_loader.load(data_type='config')
-            if config:
-                content += "## 實驗配置\n\n"
-                content += "```json\n"
-                import json
-                content += json.dumps(config, indent=2, ensure_ascii=False)
-                content += "\n```\n\n"
-            
-            # 訓練歷史摘要
-            if 'metrics_summary' in self.results:
-                content += "## 訓練指標摘要\n\n"
-                content += "| 指標 | 起始值 | 結束值 | 改善量 | 均值 | 最小值 | 最大值 |\n"
-                content += "|------|--------|--------|--------|------|--------|--------|\n"
-                
-                for metric, stats in self.results['metrics_summary'].items():
-                    content += f"| {metric} | {stats['start']:.4f} | {stats['end']:.4f} | "
-                    content += f"{stats['improvement']:.4f} | {stats['mean']:.4f} | "
-                    content += f"{stats['min']:.4f} | {stats['max']:.4f} |\n"
-                
-                content += "\n"
-            
-            # 模型結構摘要
-            if 'model_structure' in self.results:
-                content += "## 模型結構摘要\n\n"
-                # 在此添加模型結構的摘要信息，根據實際結構格式調整
-                content += "模型結構信息可用，但為了簡潔未在報告中詳細列出。\n\n"
-            
-            # 鉤子數據分析
-            if 'hooks_analysis' in self.results:
-                content += "## 鉤子數據分析\n\n"
-                
-                for epoch_key, epoch_data in self.results['hooks_analysis'].items():
-                    content += f"### {epoch_key}\n\n"
-                    
-                    # 排除 summary 以列出層信息
-                    layers = [k for k in epoch_data.keys() if k != 'summary']
-                    
-                    if layers:
-                        content += "| 層名稱 | 形狀 | 類型 |\n"
-                        content += "|--------|------|------|\n"
-                        
-                        for layer in layers:
-                            layer_info = epoch_data[layer]
-                            content += f"| {layer} | {layer_info.get('shape', 'N/A')} | {layer_info.get('type', 'N/A')} |\n"
-                    
-                    content += "\n"
-        
-        else:  # HTML 格式
-            content = f"<html><head><title>{title}</title></head><body>\n"
-            content += f"<h1>{title}</h1>\n"
-            
-            # 基本信息部分
-            content += "<h2>基本信息</h2>\n"
-            content += f"<p>實驗目錄: <code>{self.experiment_dir}</code></p>\n"
-            content += f"<p>分析時間: {logging._startTime}</p>\n"
-            
-            # 配置信息
-            config = self.experiment_loader.load(data_type='config')
-            if config:
-                content += "<h2>實驗配置</h2>\n"
-                content += "<pre><code>"
-                import json
-                content += json.dumps(config, indent=2, ensure_ascii=False)
-                content += "</code></pre>\n"
-            
-            # 訓練歷史摘要
-            if 'metrics_summary' in self.results:
-                content += "<h2>訓練指標摘要</h2>\n"
-                content += "<table border='1'>\n"
-                content += "<tr><th>指標</th><th>起始值</th><th>結束值</th><th>改善量</th>"
-                content += "<th>均值</th><th>最小值</th><th>最大值</th></tr>\n"
-                
-                for metric, stats in self.results['metrics_summary'].items():
-                    content += f"<tr><td>{metric}</td><td>{stats['start']:.4f}</td><td>{stats['end']:.4f}</td>"
-                    content += f"<td>{stats['improvement']:.4f}</td><td>{stats['mean']:.4f}</td>"
-                    content += f"<td>{stats['min']:.4f}</td><td>{stats['max']:.4f}</td></tr>\n"
-                
-                content += "</table>\n"
-            
-            # 模型結構摘要
-            if 'model_structure' in self.results:
-                content += "<h2>模型結構摘要</h2>\n"
-                content += "<p>模型結構信息可用，但為了簡潔未在報告中詳細列出。</p>\n"
-            
-            # 鉤子數據分析
-            if 'hooks_analysis' in self.results:
-                content += "<h2>鉤子數據分析</h2>\n"
-                
-                for epoch_key, epoch_data in self.results['hooks_analysis'].items():
-                    content += f"<h3>{epoch_key}</h3>\n"
-                    
-                    # 排除 summary 以列出層信息
-                    layers = [k for k in epoch_data.keys() if k != 'summary']
-                    
-                    if layers:
-                        content += "<table border='1'>\n"
-                        content += "<tr><th>層名稱</th><th>形狀</th><th>類型</th></tr>\n"
-                        
-                        for layer in layers:
-                            layer_info = epoch_data[layer]
-                            content += f"<tr><td>{layer}</td><td>{layer_info.get('shape', 'N/A')}</td>"
-                            content += f"<td>{layer_info.get('type', 'N/A')}</td></tr>\n"
-                        
-                        content += "</table>\n"
-            
-            content += "</body></html>"
-        
-        return content 
+        self.logger.info(f"報告已生成: {report_path}")
+        return report_path 
