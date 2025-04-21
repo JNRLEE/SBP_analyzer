@@ -225,6 +225,200 @@ class TestTrainingDynamicsAnalyzer(unittest.TestCase):
         figure = self.analyzer.visualize_metrics(metrics=['train_loss', 'val_loss'])
         self.assertIsInstance(figure, plt.Figure)
         plt.close(figure)
+        
+    def test_analyze_learning_efficiency(self):
+        """
+        測試增強的學習效率分析功能。
+        """
+        # 執行完整分析
+        from metrics.performance_metrics import analyze_learning_efficiency
+        
+        # 分析學習效率
+        results = analyze_learning_efficiency(
+            loss_values=self.train_loss,
+            val_loss_values=self.val_loss,
+            training_time=100.0
+        )
+        
+        # 驗證結果結構
+        self.assertIn('learning_dynamics', results)
+        self.assertIn('efficiency_metrics', results)
+        self.assertIn('convergence_metrics', results)
+        self.assertIn('time_metrics', results)
+        self.assertIn('generalization_metrics', results)
+        
+        # 驗證學習動態分析
+        self.assertIn('stages', results['learning_dynamics'])
+        self.assertIn('first_quarter', results['learning_dynamics']['stages'])
+        
+        # 驗證效率指標
+        efficiency = results['efficiency_metrics']
+        self.assertIn('total_loss_reduction', efficiency)
+        self.assertIn('percent_loss_reduction', efficiency)
+        self.assertIn('avg_loss_reduction_per_epoch', efficiency)
+        
+        # 驗證收斂指標
+        if 'convergence_metrics' in results and results['convergence_metrics']:
+            convergence = results['convergence_metrics']
+            self.assertIn('convergence_epoch', convergence)
+            self.assertIn('convergence_percent', convergence)
+        
+        # 驗證時間指標
+        time_metrics = results['time_metrics']
+        self.assertIn('total_training_time', time_metrics)
+        self.assertIn('avg_time_per_epoch', time_metrics)
+        self.assertIn('time_to_best', time_metrics)
+        
+        # 驗證泛化指標
+        generalization = results['generalization_metrics']
+        self.assertIn('train_val_correlation', generalization)
+        self.assertIn('generalization_gap', generalization)
+        
+    def test_enhanced_analysis_integration(self):
+        """
+        測試增強分析與TrainingDynamicsAnalyzer的整合。
+        """
+        # 在訓練歷史數據中添加學習率資訊
+        self.training_history['learning_rate'] = [0.1, 0.1, 0.1, 0.01, 0.01, 0.001, 0.001, 0.001, 0.001, 0.001]
+        
+        # 更新訓練歷史JSON
+        with open(os.path.join(self.test_dir, 'training_history.json'), 'w') as f:
+            json.dump(self.training_history, f)
+        
+        # 重新初始化分析器
+        self.analyzer = TrainingDynamicsAnalyzer(self.test_dir)
+        
+        # 執行完整分析
+        results = self.analyzer.analyze(save_results=False)
+        
+        # 檢查是否包含增強學習效率分析結果
+        self.assertIn('enhanced_learning_efficiency', results)
+        
+        # 檢查增強分析的主要部分
+        enhanced = results['enhanced_learning_efficiency']
+        self.assertIn('learning_dynamics', enhanced)
+        self.assertIn('efficiency_metrics', enhanced)
+        
+        # 檢查學習率分析
+        if 'learning_rate_analysis' in enhanced:
+            lr_analysis = enhanced['learning_rate_analysis']
+            self.assertIn('lr_change_points', lr_analysis)
+            self.assertGreater(len(lr_analysis['lr_change_points']), 0)
+        
+    def test_visualize_learning_stages(self):
+        """
+        測試學習階段可視化功能。
+        """
+        # 執行完整分析
+        self.analyzer.analyze(save_results=False)
+        
+        # 調用學習階段可視化方法
+        figure = self.analyzer.visualize_learning_stages()
+        
+        # 驗證是否返回了Matplotlib圖表
+        self.assertIsInstance(figure, plt.Figure)
+        
+        # 關閉圖表避免顯示
+        plt.close(figure)
+        
+    def test_visualize_efficiency_metrics(self):
+        """
+        測試效率指標可視化功能。
+        """
+        # 執行完整分析
+        self.analyzer.analyze(save_results=False)
+        
+        # 調用效率指標可視化方法
+        figure = self.analyzer.visualize_efficiency_metrics()
+        
+        # 驗證是否返回了Matplotlib圖表
+        self.assertIsInstance(figure, plt.Figure)
+        
+        # 關閉圖表避免顯示
+        plt.close(figure)
+
+    def test_analyze_lr_schedule_impact(self):
+        """
+        測試學習率調度影響分析功能。
+        """
+        # 准備虛擬的學習率數據
+        self.training_history['learning_rate'] = [0.1, 0.1, 0.1, 0.01, 0.01, 0.001, 0.001, 0.001, 0.001, 0.001]
+        
+        # 更新訓練歷史JSON
+        with open(os.path.join(self.test_dir, 'training_history.json'), 'w') as f:
+            json.dump(self.training_history, f)
+        
+        # 重新初始化分析器
+        self.analyzer = TrainingDynamicsAnalyzer(self.test_dir)
+        self.analyzer.preprocess_metrics()
+        
+        # 準備其他運行的數據
+        other_runs = {
+            'Constant LR': {
+                'train_loss': [8.0, 6.0, 4.5, 3.5, 3.0, 2.8, 2.7, 2.6, 2.55, 2.5],
+                'val_loss': [9.0, 7.0, 5.5, 4.5, 4.0, 3.8, 3.7, 3.65, 3.6, 3.55],
+                'learning_rate': [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+            },
+            'Cyclic LR': {
+                'train_loss': [10.0, 7.0, 5.0, 8.0, 4.0, 7.0, 3.0, 6.0, 2.0, 1.5],
+                'val_loss': [12.0, 8.0, 6.0, 9.0, 5.0, 8.0, 4.0, 7.0, 3.0, 2.5],
+                'learning_rate': [0.001, 0.01, 0.001, 0.01, 0.001, 0.01, 0.001, 0.01, 0.001, 0.0001]
+            }
+        }
+        
+        # 執行分析
+        result = self.analyzer.analyze_lr_schedule_impact(other_runs)
+        
+        # 驗證結果結構
+        self.assertIn('lr_schedules', result)
+        self.assertIn('comparative_analysis', result)
+        self.assertIn('recommendations', result)
+        
+        # 驗證學習率調度分析
+        self.assertIn('Current Experiment', result['lr_schedules'])
+        self.assertIn('Constant LR', result['lr_schedules'])
+        self.assertIn('Cyclic LR', result['lr_schedules'])
+        
+        # 驗證識別的調度類型
+        self.assertEqual(result['lr_schedules']['Current Experiment']['type'], 'step')
+        self.assertEqual(result['lr_schedules']['Constant LR']['type'], 'constant')
+        self.assertEqual(result['lr_schedules']['Cyclic LR']['type'], 'cyclic')
+        
+        # 驗證比較分析
+        self.assertIn('best_performing_run', result['comparative_analysis'])
+        self.assertIn('fastest_converging_run', result['comparative_analysis'])
+    
+    def test_visualize_lr_schedule_impact(self):
+        """
+        測試學習率調度影響可視化功能。
+        """
+        # 添加虛擬的學習率數據
+        self.training_history['learning_rate'] = [0.1, 0.1, 0.1, 0.01, 0.01, 0.001, 0.001, 0.001, 0.001, 0.001]
+        
+        # 更新訓練歷史JSON
+        with open(os.path.join(self.test_dir, 'training_history.json'), 'w') as f:
+            json.dump(self.training_history, f)
+        
+        # 重新初始化分析器
+        self.analyzer = TrainingDynamicsAnalyzer(self.test_dir)
+        self.analyzer.preprocess_metrics()
+        
+        # 準備其他運行的數據
+        other_runs = {
+            'Constant LR': {
+                'train_loss': [8.0, 6.0, 4.5, 3.5, 3.0, 2.8, 2.7, 2.6, 2.55, 2.5],
+                'learning_rate': [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+            }
+        }
+        
+        # 調用可視化方法
+        figure = self.analyzer.visualize_lr_schedule_impact(other_runs)
+        
+        # 驗證是否返回了Matplotlib圖表
+        self.assertIsInstance(figure, plt.Figure)
+        
+        # 關閉圖表避免顯示
+        plt.close(figure)
 
 if __name__ == '__main__':
     unittest.main() 
