@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import Dict, List, Tuple, Optional, Union, Any
-from ..utils.stat_utils import calculate_moving_average, detect_outliers, smooth_curve
+from utils.stat_utils import calculate_moving_average, detect_outliers, smooth_curve
 
 logger = logging.getLogger(__name__)
 
@@ -440,5 +440,308 @@ def plot_training_radar(runs: Dict[str, Dict[str, float]],
     
     # 調整佈局
     plt.tight_layout()
+    
+    return fig
+
+def plot_learning_stages(loss_values: List[float], 
+                        learning_stages: List[Dict[str, Any]],
+                        title: str = 'Learning Stages Analysis',
+                        figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
+    """
+    視覺化訓練過程中的不同學習階段。
+    
+    Args:
+        loss_values (List[float]): 訓練損失值列表。
+        learning_stages (List[Dict[str, Any]]): 學習階段列表，每個階段是包含'type'、'start'、'end'、'avg_slope'等鍵的字典。
+        title (str, optional): 圖表標題. 默認為'Learning Stages Analysis'
+        figsize (Tuple[int, int], optional): 圖表尺寸. 默認為(12, 8)
+        
+    Returns:
+        plt.Figure: Matplotlib圖表對象
+    """
+    if not loss_values or not learning_stages:
+        logger.warning("沒有提供損失值或學習階段數據")
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No data available", ha='center', va='center')
+        return fig
+    
+    # 創建圖表
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # 繪製損失曲線
+    epochs = range(1, len(loss_values) + 1)
+    ax.plot(epochs, loss_values, 'b-', label='Training Loss', alpha=0.7)
+    
+    # 定義不同階段的顏色映射
+    stage_colors = {
+        'initial': 'green',
+        'plateau': 'red',
+        'acceleration': 'purple',
+        'slow_progress': 'orange',
+        'convergence': 'blue'
+    }
+    
+    # 繪製不同學習階段的背景色
+    for i, stage in enumerate(learning_stages):
+        stage_type = stage.get('type', f'stage_{i}')
+        start = max(0, stage.get('start', 0))
+        end = min(len(loss_values) - 1, stage.get('end', len(loss_values) - 1))
+        
+        # 轉換為以1開始的輪次索引
+        start_epoch = start + 1
+        end_epoch = end + 1
+        
+        # 獲取階段顏色
+        color = stage_colors.get(stage_type, plt.cm.tab10(i % 10))
+        
+        # 使用矩形填充背景色
+        ax.axvspan(start_epoch, end_epoch, alpha=0.2, color=color, label=f'{stage_type.capitalize()} ({start_epoch}-{end_epoch})')
+        
+        # 添加階段標籤
+        mid_point = (start_epoch + end_epoch) / 2
+        y_pos = min(loss_values[start:end+1]) * 0.9  # 標籤位置在階段最小值下方
+        ax.text(mid_point, y_pos, stage_type.capitalize(), 
+              ha='center', va='top', fontsize=10, 
+              bbox=dict(boxstyle="round,pad=0.3", fc=color, alpha=0.3))
+    
+    # 添加收斂線性趨勢
+    for i, stage in enumerate(learning_stages):
+        start = max(0, stage.get('start', 0))
+        end = min(len(loss_values) - 1, stage.get('end', len(loss_values) - 1))
+        
+        if end > start:
+            # 根據該階段的斜率添加線性趨勢線
+            x = np.array(range(start + 1, end + 2))  # 轉換為以1開始的輪次索引
+            avg_slope = stage.get('avg_slope', 0)
+            
+            if avg_slope != 0:
+                # 計算趨勢線
+                y_start = loss_values[start]
+                trend_line = [y_start + avg_slope * (i - start) for i in range(start, end + 1)]
+                
+                # 繪製趨勢線
+                ax.plot(x, trend_line, '--', color=stage_colors.get(stage.get('type', f'stage_{i}'), plt.cm.tab10(i % 10)),
+                      linewidth=1, alpha=0.8)
+    
+    # 設置y軸範圍
+    min_loss = min(loss_values) * 0.8  # 留出空間顯示標籤
+    max_loss = max(loss_values) * 1.1
+    ax.set_ylim(min_loss, max_loss)
+    
+    # 設置標題和標籤
+    ax.set_title(title)
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Loss')
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # 調整佈局
+    handles, labels = ax.get_legend_handles_labels()
+    # 去除重複的圖例項
+    unique_labels = []
+    unique_handles = []
+    for handle, label in zip(handles, labels):
+        if label not in unique_labels:
+            unique_labels.append(label)
+            unique_handles.append(handle)
+    ax.legend(unique_handles, unique_labels, loc='upper right')
+    
+    plt.tight_layout()
+    
+    return fig
+
+def plot_learning_efficiency_comparison(runs: Dict[str, Dict[str, Dict]], 
+                                      metrics: List[str] = ['loss_reduction_efficiency', 'convergence_percent'],
+                                      title: str = 'Learning Efficiency Comparison',
+                                      figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
+    """
+    比較多個訓練運行的學習效率指標。
+    
+    Args:
+        runs (Dict[str, Dict[str, Dict]]): 包含多個訓練運行學習效率分析結果的字典，
+                                         格式為 {run_name: {'efficiency_metrics': {...}, 'convergence_metrics': {...}, ...}}
+        metrics (List[str], optional): 要比較的指標列表. 默認為['loss_reduction_efficiency', 'convergence_percent']
+        title (str, optional): 圖表標題. 默認為'Learning Efficiency Comparison'
+        figsize (Tuple[int, int], optional): 圖表尺寸. 默認為(12, 8)
+        
+    Returns:
+        plt.Figure: Matplotlib圖表對象
+    """
+    if not runs or not metrics:
+        logger.warning("沒有提供訓練運行數據或指標列表")
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No data available", ha='center', va='center')
+        return fig
+    
+    # 提取要比較的指標數據
+    comparison_data = {}
+    
+    for run_name, run_data in runs.items():
+        comparison_data[run_name] = {}
+        
+        for metric in metrics:
+            # 找到指標所在的字典
+            for category in ['efficiency_metrics', 'convergence_metrics', 'time_metrics', 'generalization_metrics']:
+                if category in run_data and metric in run_data[category]:
+                    comparison_data[run_name][metric] = run_data[category][metric]
+                    break
+    
+    # 創建圖表
+    n_metrics = len(metrics)
+    n_runs = len(runs)
+    
+    # 使用雷達圖或柱狀圖，取決於指標數量
+    if n_metrics >= 3:
+        # 雷達圖適用於3個或更多指標
+        # 使用已有的plot_training_radar函數
+        # 先規範化數據
+        normalized_runs = {}
+        for run_name, run_metrics in comparison_data.items():
+            normalized_runs[run_name] = {metric: run_metrics.get(metric, 0) for metric in metrics}
+        
+        fig = plot_training_radar(normalized_runs, metrics, title=title, figsize=figsize)
+    else:
+        # 柱狀圖適用於1-2個指標
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        x = np.arange(n_metrics)  # 指標位置
+        width = 0.8 / n_runs  # 柱狀寬度
+        
+        for i, (run_name, run_metrics) in enumerate(comparison_data.items()):
+            values = [run_metrics.get(metric, 0) for metric in metrics]
+            ax.bar(x - 0.4 + (i + 0.5) * width, values, width, label=run_name, alpha=0.7)
+        
+        # 設置標題和標籤
+        ax.set_title(title)
+        ax.set_xticks(x)
+        ax.set_xticklabels(metrics)
+        ax.legend()
+        ax.grid(True, linestyle='--', alpha=0.5, axis='y')
+        
+        plt.tight_layout()
+    
+    return fig
+
+def plot_lr_schedule_impact(lr_impact_analysis: Dict[str, Any], 
+                          title: str = 'Learning Rate Schedule Impact Analysis',
+                          figsize: Tuple[int, int] = (14, 10)) -> plt.Figure:
+    """
+    可視化學習率調度對學習效率的影響分析結果。
+    
+    Args:
+        lr_impact_analysis (Dict[str, Any]): 由analyze_lr_schedule_impact函數產生的分析結果
+        title (str, optional): 圖表標題. 默認為'Learning Rate Schedule Impact Analysis'
+        figsize (Tuple[int, int], optional): 圖表尺寸. 默認為(14, 10)
+    
+    Returns:
+        plt.Figure: Matplotlib圖表對象
+    """
+    if not lr_impact_analysis or not lr_impact_analysis.get('lr_schedules'):
+        logger.warning("沒有提供學習率調度分析數據")
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No data available", ha='center', va='center')
+        return fig
+    
+    run_names = list(lr_impact_analysis['lr_schedules'].keys())
+    n_runs = len(run_names)
+    
+    # 創建2x2佈局的圖表
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(2, 2, height_ratios=[1, 1.2])
+    
+    # 1. 學習率調度類型與性能比較
+    ax1 = fig.add_subplot(gs[0, 0])
+    
+    # 組織數據
+    lr_types = {name: lr_impact_analysis['lr_schedules'][name]['type'] for name in run_names}
+    min_losses = lr_impact_analysis['comparative_analysis']['min_loss_by_run']
+    epochs_to_min = lr_impact_analysis['comparative_analysis']['epochs_to_min_loss']
+    
+    # 按學習率調度類型分組
+    grouped_data = {}
+    for name, lr_type in lr_types.items():
+        if lr_type not in grouped_data:
+            grouped_data[lr_type] = []
+        grouped_data[lr_type].append((name, min_losses[name], epochs_to_min[name]))
+    
+    # 繪製條形圖
+    x_pos = np.arange(n_runs)
+    bars = ax1.bar(x_pos, [min_losses[name] for name in run_names], width=0.6, alpha=0.7)
+    
+    # 設置條形顏色按學習率調度類型
+    colors = {'constant': 'blue', 'step': 'green', 'cyclic': 'red', 'custom': 'orange'}
+    for i, name in enumerate(run_names):
+        bars[i].set_color(colors.get(lr_types[name], 'gray'))
+    
+    # 添加標籤和圖例
+    ax1.set_xticks(x_pos)
+    ax1.set_xticklabels([f"{name}\n({lr_types[name]})" for name in run_names], rotation=45)
+    ax1.set_ylabel('Minimum Loss')
+    ax1.set_title('Minimum Loss by Learning Rate Schedule Type')
+    
+    # 創建顏色標記的圖例
+    handles = [plt.Rectangle((0,0),1,1, color=color) for color in colors.values()]
+    labels = list(colors.keys())
+    ax1.legend(handles, labels, title="Schedule Type")
+    
+    # 2. 收斂速度比較
+    ax2 = fig.add_subplot(gs[0, 1])
+    
+    # 繪製收斂輪次條形圖
+    convergence_epochs = lr_impact_analysis['comparative_analysis'].get('convergence_epochs', {})
+    valid_runs = [name for name in run_names if name in convergence_epochs]
+    
+    if valid_runs:
+        x_pos_conv = np.arange(len(valid_runs))
+        bars_conv = ax2.bar(x_pos_conv, [convergence_epochs[name] for name in valid_runs], 
+                          width=0.6, alpha=0.7)
+        
+        # 設置條形顏色
+        for i, name in enumerate(valid_runs):
+            bars_conv[i].set_color(colors.get(lr_types[name], 'gray'))
+        
+        ax2.set_xticks(x_pos_conv)
+        ax2.set_xticklabels([f"{name}\n({lr_types[name]})" for name in valid_runs], rotation=45)
+        ax2.set_ylabel('Convergence Epoch')
+        ax2.set_title('Convergence Speed by Learning Rate Schedule Type')
+    else:
+        ax2.text(0.5, 0.5, "No convergence data available", ha='center', va='center')
+    
+    # 3. 學習率變化與損失相關性
+    ax3 = fig.add_subplot(gs[1, :])
+    
+    # 為每個運行創建一個子圖
+    for i, name in enumerate(run_names):
+        schedule_info = lr_impact_analysis['lr_schedules'][name]
+        corr = schedule_info['lr_loss_correlation']
+        changes = schedule_info['changes_count']
+        lr_range = schedule_info['lr_range']
+        
+        # 在圖表上放置一個註釋方框
+        props = dict(boxstyle='round', facecolor=colors.get(lr_types[name], 'gray'), alpha=0.2)
+        text_info = (f"Type: {lr_types[name]}\n"
+                   f"LR-Loss Correlation: {corr:.3f}\n"
+                   f"LR Changes: {changes}\n"
+                   f"LR Range: {lr_range:.6f}")
+        
+        x_pos = 0.1 + 0.8 * (i / (n_runs or 1))  # 平均分佈在x軸上
+        ax3.text(x_pos, 0.5, text_info, transform=ax3.transAxes, fontsize=9,
+               bbox=props, ha='center', va='center')
+    
+    ax3.set_title('Learning Rate Schedule Characteristics')
+    ax3.axis('off')  # 不顯示座標軸
+    
+    # 添加推薦信息
+    if 'recommendations' in lr_impact_analysis and lr_impact_analysis['recommendations']:
+        recommendations = lr_impact_analysis['recommendations']
+        rec_text = "\n".join([f"• {rec}" for rec in recommendations])
+        
+        props = dict(boxstyle='round', facecolor='lightgray', alpha=0.5)
+        ax3.text(0.5, 0.15, f"Recommendations:\n{rec_text}",
+               transform=ax3.transAxes, fontsize=10,
+               bbox=props, ha='center', va='center')
+    
+    # 設置總標題
+    fig.suptitle(title, fontsize=14)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # 為suptitle留出空間
     
     return fig 

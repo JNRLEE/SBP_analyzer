@@ -22,7 +22,9 @@ from metrics.performance_metrics import (
     analyze_metric_curve,
     analyze_training_efficiency,
     evaluate_convergence,
-    detect_performance_anomalies
+    detect_performance_anomalies,
+    analyze_learning_efficiency,
+    analyze_lr_schedule_impact
 )
 from utils.stat_utils import (
     calculate_correlation, 
@@ -138,7 +140,8 @@ class TrainingDynamicsAnalyzer(BaseAnalyzer):
             'trend_analysis': {},
             'metric_correlations': {},
             'training_efficiency': {},
-            'anomaly_detection': {}
+            'anomaly_detection': {},
+            'enhanced_learning_efficiency': {}
         }
         
         try:
@@ -212,6 +215,26 @@ class TrainingDynamicsAnalyzer(BaseAnalyzer):
                 # 異常檢測
                 val_anomalies = detect_performance_anomalies(val_loss_values)
                 self.results['anomaly_detection'][val_loss] = val_anomalies
+                
+                # 如果有訓練損失和驗證損失，進行增強的學習效率分析
+                if primary_loss:
+                    # 提取學習率數據（如果存在）
+                    learning_rates = None
+                    for lr_name in ['lr', 'learning_rate', 'optimizer_lr']:
+                        if lr_name in self.metrics_data.columns:
+                            learning_rates = self.metrics_data[lr_name].dropna().tolist()
+                            break
+                    
+                    # 進行增強的學習效率分析
+                    learning_efficiency = analyze_learning_efficiency(
+                        loss_values=loss_values,
+                        val_loss_values=val_loss_values,
+                        training_time=training_time,
+                        learning_rates=learning_rates
+                    )
+                    
+                    # 添加到結果中
+                    self.results['enhanced_learning_efficiency'] = learning_efficiency
             
             # 分析其他非損失指標
             evaluation_metrics = [m for m in metrics if 'loss' not in m.lower()]
@@ -555,6 +578,243 @@ class TrainingDynamicsAnalyzer(BaseAnalyzer):
         
         # 調整布局
         plt.tight_layout()
+        
+        # 保存圖像
+        if output_path:
+            plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        
+        return fig
+    
+    def visualize_learning_stages(self, output_path: Optional[str] = None) -> plt.Figure:
+        """
+        可視化學習階段分析結果。
+        
+        Args:
+            output_path (str, optional): 輸出圖像的路徑。如果為None，則僅返回圖像對象。
+            
+        Returns:
+            plt.Figure: Matplotlib圖像對象。
+        """
+        from visualization.performance_plots import plot_learning_stages
+        
+        # 檢查是否已進行學習效率分析
+        if 'enhanced_learning_efficiency' not in self.results or not self.results['enhanced_learning_efficiency']:
+            self.logger.warning("未找到學習效率分析結果，無法繪製學習階段")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, "No learning efficiency analysis results available", ha='center', va='center')
+            return fig
+        
+        # 獲取主要損失指標
+        primary_loss = None
+        for loss_name in ['train_loss', 'loss', 'training_loss']:
+            if loss_name in self.metrics_data.columns:
+                primary_loss = loss_name
+                break
+        
+        if not primary_loss:
+            self.logger.warning("未找到主要損失指標，無法繪製學習階段")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, "No primary loss metric available", ha='center', va='center')
+            return fig
+        
+        # 獲取損失值和學習階段
+        loss_values = self.metrics_data[primary_loss].dropna().tolist()
+        
+        learning_efficiency_results = self.results['enhanced_learning_efficiency']
+        
+        if 'learning_dynamics' not in learning_efficiency_results or 'identified_stages' not in learning_efficiency_results['learning_dynamics']:
+            self.logger.warning("未找到學習階段識別結果，無法繪製學習階段")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, "No learning stages identified", ha='center', va='center')
+            return fig
+        
+        learning_stages = learning_efficiency_results['learning_dynamics']['identified_stages']
+        
+        # 繪製學習階段
+        fig = plot_learning_stages(loss_values, learning_stages, 
+                               title=f'Learning Stages Analysis - {self.experiment_dir}')
+        
+        # 保存圖像
+        if output_path:
+            plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        
+        return fig
+    
+    def visualize_efficiency_metrics(self, metrics: Optional[List[str]] = None, 
+                                   output_path: Optional[str] = None) -> plt.Figure:
+        """
+        可視化學習效率指標。
+        
+        Args:
+            metrics (List[str], optional): 要可視化的指標列表。如果為None，則使用默認指標。
+            output_path (str, optional): 輸出圖像的路徑。如果為None，則僅返回圖像對象。
+            
+        Returns:
+            plt.Figure: Matplotlib圖像對象。
+        """
+        from visualization.performance_plots import plot_learning_efficiency_comparison
+        
+        # 檢查是否已進行學習效率分析
+        if 'enhanced_learning_efficiency' not in self.results or not self.results['enhanced_learning_efficiency']:
+            self.logger.warning("未找到學習效率分析結果，無法繪製效率指標")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, "No learning efficiency analysis results available", ha='center', va='center')
+            return fig
+        
+        # 獲取相關類別的指標
+        efficiency_metrics = self.results['enhanced_learning_efficiency'].get('efficiency_metrics', {})
+        convergence_metrics = self.results['enhanced_learning_efficiency'].get('convergence_metrics', {})
+        time_metrics = self.results['enhanced_learning_efficiency'].get('time_metrics', {})
+        generalization_metrics = self.results['enhanced_learning_efficiency'].get('generalization_metrics', {})
+        
+        # 收集所有可用指標
+        all_metrics = {}
+        for category, metrics_dict in [
+            ('efficiency', efficiency_metrics),
+            ('convergence', convergence_metrics),
+            ('time', time_metrics),
+            ('generalization', generalization_metrics)
+        ]:
+            for metric, value in metrics_dict.items():
+                all_metrics[f"{category}_{metric}"] = value
+        
+        # 確定要可視化的指標
+        if not metrics:
+            # 默認使用一些重要的效率指標
+            metrics = [
+                'efficiency_loss_reduction_efficiency',
+                'efficiency_percent_loss_reduction',
+                'convergence_convergence_percent'
+            ]
+            # 添加時間指標（如果有）
+            if time_metrics:
+                metrics.append('time_loss_reduction_per_second')
+            # 添加泛化指標（如果有）
+            if generalization_metrics:
+                metrics.append('generalization_generalization_gap')
+        
+        # 過濾不可用的指標
+        available_metrics = [m for m in metrics if m in all_metrics]
+        
+        if not available_metrics:
+            self.logger.warning("沒有可用的效率指標，無法繪製")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, "No available efficiency metrics", ha='center', va='center')
+            return fig
+        
+        # 準備數據
+        runs_data = {'This Run': {}}
+        for metric in available_metrics:
+            category, metric_name = metric.split('_', 1)
+            if category not in runs_data['This Run']:
+                runs_data['This Run'][category] = {}
+            runs_data['This Run'][category][metric_name] = all_metrics[metric]
+        
+        # 繪製效率指標
+        fig = plot_learning_efficiency_comparison(
+            runs=runs_data,
+            metrics=available_metrics,
+            title=f'Learning Efficiency Metrics - {self.experiment_dir}'
+        )
+        
+        # 保存圖像
+        if output_path:
+            plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        
+        return fig
+    
+    def analyze_lr_schedule_impact(self, other_runs: Optional[Dict[str, Dict[str, List[float]]]] = None) -> Dict[str, Any]:
+        """
+        分析學習率調度對訓練效果的影響。
+        
+        Args:
+            other_runs (Dict[str, Dict[str, List[float]]], optional): 其他訓練運行的數據，格式為：
+                {
+                    'run_name': {
+                        'train_loss': [float, ...],
+                        'val_loss': [float, ...],
+                        'learning_rate': [float, ...]
+                    }
+                }
+                如果為None，則僅分析當前實驗。
+                
+        Returns:
+            Dict[str, Any]: 學習率調度影響分析結果。
+        """
+        from metrics.performance_metrics import analyze_lr_schedule_impact
+        
+        # 檢查是否已載入訓練歷史
+        if not hasattr(self, 'training_history') or not self.training_history:
+            self.logger.warning("未載入訓練歷史，無法分析學習率調度")
+            return {}
+        
+        # 檢查當前實驗是否有學習率數據
+        lr_metric = None
+        for metric_name in ['learning_rate', 'lr', 'optimizer_lr']:
+            if metric_name in self.metrics_data.columns:
+                lr_metric = metric_name
+                break
+        
+        if not lr_metric:
+            self.logger.warning("當前實驗中未找到學習率數據")
+            return {}
+        
+        # 準備當前實驗的數據
+        current_run_data = {
+            'Current Experiment': {
+                'train_loss': self.metrics_data['train_loss'].tolist() if 'train_loss' in self.metrics_data.columns else [],
+                'val_loss': self.metrics_data['val_loss'].tolist() if 'val_loss' in self.metrics_data.columns else [],
+                'learning_rate': self.metrics_data[lr_metric].tolist()
+            }
+        }
+        
+        # 合併其他運行的數據
+        all_runs_data = {}
+        if other_runs:
+            all_runs_data.update(other_runs)
+        all_runs_data.update(current_run_data)
+        
+        # 執行分析
+        analysis_results = analyze_lr_schedule_impact(all_runs_data)
+        
+        # 保存分析結果
+        if 'lr_schedule_impact_analysis' not in self.results:
+            self.results['lr_schedule_impact_analysis'] = {}
+        self.results['lr_schedule_impact_analysis'] = analysis_results
+        
+        return analysis_results
+    
+    def visualize_lr_schedule_impact(self, other_runs: Optional[Dict[str, Dict[str, List[float]]]] = None,
+                                   output_path: Optional[str] = None) -> plt.Figure:
+        """
+        可視化學習率調度對訓練效果的影響。
+        
+        Args:
+            other_runs (Dict[str, Dict[str, List[float]]], optional): 其他訓練運行的數據，格式同analyze_lr_schedule_impact
+            output_path (str, optional): 輸出圖像的路徑。如果為None，則僅返回圖像對象。
+            
+        Returns:
+            plt.Figure: Matplotlib圖像對象。
+        """
+        from visualization.performance_plots import plot_lr_schedule_impact
+        
+        # 先執行分析（如果需要）
+        if 'lr_schedule_impact_analysis' not in self.results or not self.results['lr_schedule_impact_analysis']:
+            self.analyze_lr_schedule_impact(other_runs)
+        
+        analysis_results = self.results.get('lr_schedule_impact_analysis', {})
+        
+        if not analysis_results:
+            self.logger.warning("沒有學習率調度影響分析結果，無法生成可視化")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, "No learning rate schedule impact analysis results available", ha='center', va='center')
+            return fig
+        
+        # 生成可視化
+        fig = plot_lr_schedule_impact(
+            analysis_results,
+            title=f'Learning Rate Schedule Impact Analysis - {self.experiment_dir}'
+        )
         
         # 保存圖像
         if output_path:
