@@ -978,19 +978,26 @@ def analyze_lr_schedule_impact(runs: Dict[str, Dict[str, List[float]]]) -> Dict[
         
         # 檢測學習率調度類型
         schedule_type = 'constant'
-        if len(set(lr_values)) > 1:
-            # 檢查是否為階梯式下降
-            is_step = all(lr_values[i] >= lr_values[i+1] for i in range(len(lr_values)-1))
+        if len(set(lr_values)) > 1:  # 如果有多個不同的學習率值
+            # 檢查學習率變化模式
+            # 只有遞減或保持不變，沒有增加
+            is_monotonic_decreasing = all(lr_values[i] >= lr_values[i+1] for i in range(len(lr_values)-1))
+            # 只有遞增或保持不變，沒有減少
+            is_monotonic_increasing = all(lr_values[i] <= lr_values[i+1] for i in range(len(lr_values)-1))
+            # 有增有減
+            has_fluctuation = any(lr_values[i] < lr_values[i+1] for i in range(len(lr_values)-1)) and any(lr_values[i] > lr_values[i+1] for i in range(len(lr_values)-1))
+            # 檢查是否是階梯式變化
+            has_step_changes = sum(1 for i in range(1, len(lr_values)) if lr_values[i] != lr_values[i-1]) <= len(lr_values) // 3
             
-            # 檢查是否為循環式
-            has_increase = any(lr_values[i] < lr_values[i+1] for i in range(len(lr_values)-1))
-            
-            if is_step and not has_increase:
-                schedule_type = 'step'
-            elif has_increase:
-                schedule_type = 'cyclic'
+            # 判斷調度類型
+            if is_monotonic_decreasing and has_step_changes:
+                schedule_type = 'step'  # 階梯式下降
+            elif is_monotonic_increasing and has_step_changes:
+                schedule_type = 'warmup'  # 預熱式上升
+            elif has_fluctuation:
+                schedule_type = 'cyclic'  # 循環變化
             else:
-                schedule_type = 'custom'
+                schedule_type = 'custom'  # 其他自定義模式
         
         # 計算學習率與損失之間的相關性
         corr = np.corrcoef(lr_values, loss_values)[0, 1] if len(set(lr_values)) > 1 else 0

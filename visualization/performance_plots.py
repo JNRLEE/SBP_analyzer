@@ -623,7 +623,8 @@ def plot_learning_efficiency_comparison(runs: Dict[str, Dict[str, Dict]],
 
 def plot_lr_schedule_impact(lr_impact_analysis: Dict[str, Any], 
                           title: str = 'Learning Rate Schedule Impact Analysis',
-                          figsize: Tuple[int, int] = (14, 10)) -> plt.Figure:
+                          figsize: Tuple[int, int] = (14, 10),
+                          use_english: bool = False) -> plt.Figure:
     """
     可視化學習率調度對學習效率的影響分析結果。
     
@@ -631,6 +632,7 @@ def plot_lr_schedule_impact(lr_impact_analysis: Dict[str, Any],
         lr_impact_analysis (Dict[str, Any]): 由analyze_lr_schedule_impact函數產生的分析結果
         title (str, optional): 圖表標題. 默認為'Learning Rate Schedule Impact Analysis'
         figsize (Tuple[int, int], optional): 圖表尺寸. 默認為(14, 10)
+        use_english (bool, optional): 是否使用英文標籤. 默認為False
     
     Returns:
         plt.Figure: Matplotlib圖表對象
@@ -668,7 +670,13 @@ def plot_lr_schedule_impact(lr_impact_analysis: Dict[str, Any],
     bars = ax1.bar(x_pos, [min_losses[name] for name in run_names], width=0.6, alpha=0.7)
     
     # 設置條形顏色按學習率調度類型
-    colors = {'constant': 'blue', 'step': 'green', 'cyclic': 'red', 'custom': 'orange'}
+    colors = {
+        'constant': 'blue', 
+        'step': 'green', 
+        'cyclic': 'red', 
+        'custom': 'orange',
+        'warmup': 'purple'
+    }
     for i, name in enumerate(run_names):
         bars[i].set_color(colors.get(lr_types[name], 'gray'))
     
@@ -715,13 +723,33 @@ def plot_lr_schedule_impact(lr_impact_analysis: Dict[str, Any],
         corr = schedule_info['lr_loss_correlation']
         changes = schedule_info['changes_count']
         lr_range = schedule_info['lr_range']
+        lr_type = lr_types[name]
+        
+        # 根據學習率調度類型顯示合適的描述
+        type_descriptions = {
+            'constant': {'zh': '固定學習率', 'en': 'Constant LR'},
+            'step': {'zh': '階梯式下降', 'en': 'Step Decay'},
+            'cyclic': {'zh': '循環變化', 'en': 'Cyclic Variation'},
+            'custom': {'zh': '自定義變化', 'en': 'Custom Schedule'},
+            'warmup': {'zh': '預熱式上升', 'en': 'Warmup Schedule'}
+        }
+        
+        type_description = type_descriptions.get(lr_type, {'zh': lr_type, 'en': lr_type})
+        display_type = type_description['en'] if use_english else type_description['zh']
         
         # 在圖表上放置一個註釋方框
-        props = dict(boxstyle='round', facecolor=colors.get(lr_types[name], 'gray'), alpha=0.2)
-        text_info = (f"Type: {lr_types[name]}\n"
-                   f"LR-Loss Correlation: {corr:.3f}\n"
-                   f"LR Changes: {changes}\n"
-                   f"LR Range: {lr_range:.6f}")
+        props = dict(boxstyle='round', facecolor=colors.get(lr_type, 'gray'), alpha=0.2)
+        
+        if use_english:
+            text_info = (f"Type: {display_type}\n"
+                       f"LR-Loss Correlation: {corr:.3f}\n"
+                       f"LR Changes: {changes}\n"
+                       f"LR Range: {lr_range:.6f}")
+        else:
+            text_info = (f"Type/類型: {display_type}\n"
+                       f"LR-Loss Correlation/相關性: {corr:.3f}\n"
+                       f"LR Changes/變化次數: {changes}\n"
+                       f"LR Range/範圍: {lr_range:.6f}")
         
         x_pos = 0.1 + 0.8 * (i / (n_runs or 1))  # 平均分佈在x軸上
         ax3.text(x_pos, 0.5, text_info, transform=ax3.transAxes, fontsize=9,
@@ -736,7 +764,8 @@ def plot_lr_schedule_impact(lr_impact_analysis: Dict[str, Any],
         rec_text = "\n".join([f"• {rec}" for rec in recommendations])
         
         props = dict(boxstyle='round', facecolor='lightgray', alpha=0.5)
-        ax3.text(0.5, 0.15, f"Recommendations:\n{rec_text}",
+        rec_title = "Recommendations:" if use_english else "建議/Recommendations:"
+        ax3.text(0.5, 0.15, f"{rec_title}\n{rec_text}",
                transform=ax3.transAxes, fontsize=10,
                bbox=props, ha='center', va='center')
     
