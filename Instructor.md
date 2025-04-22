@@ -99,65 +99,106 @@ layer_activation_dist = analysis_results.get_activation_distribution('patch_embe
 
 ## 3. 開發路線圖
 
-### 階段一：基礎架構和核心數據處理
+### 階段一：基礎架構和核心功能修復（已完成）
 
-1.  **建立核心架構**
+1.  **建立核心架構** ✅
     *   實現 `analyzer`, `data_loader`, `metrics`, `visualization`, `reporter`, `utils`, `interfaces` 目錄結構。
     *   定義 `BaseAnalyzer` 和 `BaseLoader` 抽象基礎類別。
-2.  **基礎數據載入**
+2.  **基礎數據載入** ✅
     *   實現 `ExperimentLoader` 以載入 MicDysphagiaFramework 格式的訓練結果 (config.json, training_history.json 等)。
-    *   實現 `HookDataLoader` 以載入 hook 目錄中的 .pt 數據文件。
     *   實現 `file_utils` 來處理路徑和文件查找。
-3.  **基礎指標和視覺化**
-    *   實現 `distribution_metrics` 中的基本分布統計量。
-    *   實現 `performance_metrics` 中的基本訓練指標計算。
-    *   實現 `distribution_plots` 和 `performance_plots` 中的基礎繪圖功能 (e.g., 直方圖, 學習曲線)。
-4.  **建立測試基礎**
+3.  **核心功能修復** ✅
+    *   修復 `stat_utils.py` 中的 `find_convergence_point` 和 `detect_outliers` 函數。
+    *   修正 `distribution_metrics.py` 中的 `calculate_histogram_intersection` 函數。
+    *   添加缺少的 `calculate_distribution_similarity` 和 `compare_tensor_distributions` 函數。
+4.  **建立測試基礎** ✅
     *   設置 `pytest` 環境。
-    *   建立 `test_data` 目錄並加入模擬數據。
-    *   為 `data_loader` 和 `utils` 編寫初步的單元測試。
+    *   創建 `run_tests.py` 腳本用於自動化測試。
+    *   為 `utils` 和 `metrics` 模組編寫基礎單元測試。
 
-### 階段二：核心分析功能開發
+### 階段二：分析功能增強（進行中）
 
-1.  **模型結構分析**
-    *   實現 `ModelStructureAnalyzer`，解析 model_structure.json 文件中的模型層次結構和參數信息。
-    *   實現 `model_structure_plots`，繪製模型層級圖和參數分布圖。
-2.  **訓練動態分析**
-    *   實現 `TrainingDynamicsAnalyzer`，分析 training_history.json 中的 Loss 和 Metrics 趨勢。
-    *   在 `performance_metrics` 中加入更進階的指標 (e.g., 移動平均、變異數)。
-    *   在 `performance_plots` 中加入更多視覺化選項 (e.g., 指標相關性圖)。
-3.  **報告生成器初步實現**
-    *   實現 `ReportGenerator`，能夠將文字、指標和圖像整合到一個簡單的 Markdown 或 HTML 報告中。
-4.  **擴充測試**
-    *   為 `analyzer`, `metrics`, `visualization` 模組增加單元測試。
+1.  **模型結構分析完善**（部分完成）
+    *   ✅ 實現模型結構視覺化（`visualization/model_structure_plots.py`），包括：
+        * 模型架構圖繪製
+        * 參數分布視覺化
+        * 層複雜度圖和順序路徑圖
+    *   ✅ 進一步擴展 `ModelStructureAnalyzer`，支持更多模型類型和架構解析，包括：
+        * 添加更多模型類型識別模式 (swin, vision_transformer, mlp, graph_neural_network, generative)
+        * 增強層複雜度分析
+        * 實現權重分布分析和參數效率計算
+    *   ✅ 完成更多統計分析功能，如層連接性分析、參數不均勻度計算（Gini係數）等。
+2.  **訓練動態分析強化**（已完成）
+    *   ✅ 實現 `performance_metrics.py`，提供多種評估指標計算：
+        * 均方根誤差 (RMSE)
+        * 平均絕對誤差 (MAE) 
+        * 平均絕對百分比誤差 (MAPE)
+        * R平方 (R²)
+        * 解釋方差比 (EVS)
+        * 平均偏差 (MBD)
+    *   ✅ 實現 `training_dynamics_analyzer.py` 用於分析訓練過程中的效能曲線。
+    *   ✅ 實現核心分析函數，如 `analyze_loss_curve` 和 `analyze_metric_curve`。
+    *   ✅ 增加學習效率和收斂性分析工具，如 `analyze_learning_efficiency` 和 `analyze_lr_schedule_impact`。
+    *   ✅ 實現自動檢測訓練中的異常模式和瓶頸。
+3.  **可視化功能基礎建設**（已完成）
+    *   ✅ 建立統一的繪圖接口（`visualization/plotter.py` 中的 `BasePlotter` 類）。
+    *   ✅ 實現模型結構視覺化功能 (`visualization/model_structure_plots.py`)。
+    *   ✅ 實現 `distribution_plots.py` 中的基礎繪圖功能，包括：
+        * 直方圖繪製
+        * 分布比較圖
+        * 箱形圖和熱圖
+        * QQ圖及其他統計圖表
+    *   ✅ 實現 `performance_plots.py` 中的效能視覺化功能，包括：
+        * 損失曲線繪製
+        * 多指標曲線繪製
+        * 學習率曲線展示
+        * 訓練穩定性和收斂性分析圖
+        * 訓練熱圖
+    *   ✅ 增強 `inference_analyzer.py` 的推理性能分析，修復JSON序列化和數據類型轉換問題。
+4.  **擴展單元測試**（部分完成）
+    *   ✅ 為性能指標功能添加單元測試 (`tests/test_performance_metrics.py`)。
+    *   ✅ 為模型結構分析和視覺化功能添加單元測試 (`tests/test_model_structure_analyzer.py`)。
+    *   ✅ 為新實現的分布和性能視覺化功能添加單元測試 (`tests/test_distribution_plots.py`, `tests/test_performance_plots.py`).
+    *   ✅ 為推理分析器添加單元測試 (`tests/test_inference_analyzer.py`)。
 
-### 階段三：中間層數據分析
+### 階段三：中間層數據分析與報告生成（待開始）
 
-1.  **中間層數據分析器**
-    *   實現 `IntermediateDataAnalyzer`，分析 hooks 目錄中的激活值 (.pt) 數據。
-    *   實現 `layer_activity_metrics`，計算激活值的統計量 (e.g., 均值、標準差、稀疏度)。
-    *   實現 `layer_activity_plots`，繪製激活值的熱力圖或分布圖。
-2.  **進階分布比較**
-    *   在 `distribution_metrics` 中加入更複雜的指標 (e.g., KL 散度, Wasserstein 距離)。
-    *   在 `distribution_plots` 中加入比較視覺化 (e.g., 並排或重疊的分布圖)。
-3.  **增強報告功能**
-    *   允許自訂報告佈局和包含的內容。
-    *   支援輸出更多格式。
-4.  **整合測試**
-    *   編寫整合測試，模擬完整的分析流程。
+1.  **中間數據加載與處理**
+    *   ❌ 完成 `HookDataLoader` 以載入 hooks 目錄中的激活值數據。
+    *   ❌ 實現張量數據的預處理和正規化功能。
+2.  **層級活動分析**
+    *   ❌ 實現 `layer_activity_metrics` 計算激活值的統計量和特徵。
+    *   ❌ 設計層級行為分析算法，檢測異常激活模式。
+    *   ❌ 實現層與層之間的相互關係分析。
+3.  **報告生成器實現**
+    *   ❌ 設計 `ReportGenerator`，整合分析結果到結構化報告。
+    *   ❌ 支持多種報告格式（Markdown、HTML、PDF）。
+    *   ❌ 建立報告模板系統，支持定制化報告內容。
+4.  **整合測試與示例**
+    *   ❌ 編寫端到端的整合測試案例。
+    *   ✅ 創建示例腳本：
+        * `examples/cross_validation_example.py`：展示交叉驗證評估模型表現。
+        * `examples/analyze_training_dynamics.py`：展示分析訓練過程的動態特性。
+        * `examples/feature_importance_example.py`：展示特徵重要性分析。
 
-### 階段四：高級功能與易用性提升
+### 階段四：高級分析與生產環境準備（待開始）
 
-1.  **交互式視覺化 (可選)**
-    *   探索整合 Plotly 或 Bokeh 等庫，提供交互式圖表。
-2.  **可配置性與擴展性**
-    *   允許用戶通過配置文件指定分析參數和要使用的模組。
-    *   設計易於擴展的接口，方便用戶添加自訂的分析器、載入器、指標或繪圖函數。
-3.  **文檔與示例**
-    *   完善 API 文檔和使用指南。
-    *   提供針對不同應用場景的詳細示例 (e.g., 分析 CNN 的特徵圖, 分析 Transformer 的注意力權重)。
-4.  **性能優化**
-    *   針對大型數據集和複雜分析進行性能評估和優化。
+1.  **高級分析算法**
+    *   ❌ 實現模型解釋性分析，如特徵重要性和敏感度分析。
+    *   ❌ 設計模型比較系統，支持不同模型架構和超參數的對比。
+    *   ❌ 開發訓練過程優化建議引擎。
+2.  **交互式可視化**
+    *   ❌ 集成 Plotly 或 Bokeh 等庫，提供交互式圖表。
+    *   ❌ 實現自定義儀表板功能，支持用戶配置顯示內容。
+    *   ❌ 開發基於網頁的結果瀏覽界面。
+3.  **系統優化與性能提升**
+    *   ❌ 優化大數據處理流程，支持分批處理和並行計算。
+    *   ❌ 提升內存效率，處理超大規模模型和數據集。
+    *   ❌ 實現結果緩存機制，提高重複分析效率。
+4.  **文檔與部署**
+    *   ❌ 完善 API 文檔和使用指南。
+    *   ❌ 提供部署指南和生產環境配置最佳實踐。
+    *   ❌ 創建示例和教程，覆蓋不同使用場景。
 
 ## 4. 數據載入器設計
 
