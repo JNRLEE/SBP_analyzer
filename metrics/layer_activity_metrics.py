@@ -12,7 +12,7 @@
 import torch
 import numpy as np
 import scipy.stats
-from typing import Dict, Any, Tuple, List, Union
+from typing import Dict, Any, Tuple, List, Union, Optional
 
 
 def compute_activation_distribution(activations: torch.Tensor) -> Dict[str, float]:
@@ -233,415 +233,761 @@ def compute_layer_similarity(activations1: torch.Tensor,
 
 def compute_stability_over_batches(batch_activations: List[torch.Tensor]) -> Dict[str, float]:
     """
-    計算層級激活值在不同批次之間的穩定性。
-    
+    計算多個批次激活值的穩定性指標。
+
     Args:
-        batch_activations: 包含多個批次激活值的列表
-        
+        batch_activations: 多個批次的激活值列表，每個元素是一個批次的激活張量
+
     Returns:
-        包含穩定性指標的字典
+        包含穩定性指標的字典，如方差、變異係數、批次間相似度等
     """
     if len(batch_activations) < 2:
-        raise ValueError("需要至少兩個批次的激活值來計算穩定性")
+        raise ValueError("需要至少兩個批次才能計算穩定性")
+    
+    # 轉換為numpy數組以便計算
+    batches = [t.detach().cpu().numpy() if isinstance(t, torch.Tensor) else t for t in batch_activations]
     
     # 計算每個批次的平均激活值
-    batch_means = [tensor.mean().item() for tensor in batch_activations]
+    batch_means = [np.mean(batch) for batch in batches]
     
-    # 計算批次間的方差和離散度
-    batch_variance = np.var(batch_means)
-    batch_cv = np.std(batch_means) / np.mean(batch_means) if np.mean(batch_means) != 0 else 0.0
+    # 計算批次平均值的方差
+    variance = np.var(batch_means)
     
-    # 計算相鄰批次之間的相似度
+    # 計算變異係數 (CV = 標準差 / 平均值)
+    mean_of_means = np.mean(batch_means)
+    cv = np.std(batch_means) / (mean_of_means + 1e-10)
+    
+    # 計算相鄰批次間的相似度
     similarities = []
-    for i in range(len(batch_activations) - 1):
-        similarity = compute_layer_similarity(batch_activations[i], batch_activations[i+1])
+    for i in range(len(batches) - 1):
+        flat1 = batches[i].reshape(-1)
+        flat2 = batches[i + 1].reshape(-1)
+        min_len = min(len(flat1), len(flat2))
+        similarity = np.corrcoef(flat1[:min_len], flat2[:min_len])[0, 1]
         similarities.append(similarity)
     
-    avg_similarity = np.mean(similarities) if similarities else 0.0
+    avg_similarity = np.mean(similarities)
     
     return {
-        'batch_variance': batch_variance,
-        'batch_coefficient_variation': batch_cv,
-        'avg_batch_similarity': avg_similarity
+        'batch_variance': float(variance),
+        'coefficient_of_variation': float(cv),
+        'avg_batch_similarity': float(avg_similarity),
+        'batch_similarities': [float(s) for s in similarities]
     }
 
 
-def analyze_layer_gradient_flow(gradients: torch.Tensor) -> Dict[str, float]:
+def detect_activation_anomalies(activations: Union[torch.Tensor, np.ndarray], 
+                              threshold_z: float = 3.0,
+                              skew_threshold: float = 1.0,
+                              kurt_threshold: float = 3.0,
+                              gradient_threshold: float = 2.0) -> Dict[str, Any]:
     """
-    分析層級梯度流動情況，檢測梯度消失或爆炸。
+    檢測神經網路層的異常激活模式。
+
+    此函數分析激活值張量，檢測多種潛在異常：
+    1. 極端值（異常高或低的值）
+    2. 分布異常（高偏斜度或峰度）
+    3. 梯度異常（鄰近神經元間的激活值變化過大）
+    4. 激活值過度集中（不均勻分布）
+
+    Args:
+        activations: 要分析的激活值張量
+        threshold_z: Z分數閾值，用於判定極端值 (默認: 3.0)
+        skew_threshold: 偏斜度異常判定閾值 (默認: 1.0)
+        kurt_threshold: 峰度異常判定閾值 (默認: 3.0)
+        gradient_threshold: 梯度異常判定閾值 (默認: 2.0)
+
+    Returns:
+        Dict[str, Any]: 包含異常檢測結果的字典，包括：
+            - has_anomaly: 是否檢測到異常
+            - anomaly_score: 綜合異常分數 (0-1)
+            - extreme_value_ratio: 極端值占比
+            - skewness: 分布偏斜度
+            - kurtosis: 分布峰度
+            - skewness_abnormal: 偏斜度是否異常
+            - kurtosis_abnormal: 峰度是否異常
+            - gradient_abnormal_ratio: 梯度異常的比例
+            - concentration_abnormal: 激活值是否過度集中
+            - extreme_value_examples: 極端值示例列表
+    """
+    # 確保輸入為numpy數組
+    if isinstance(activations, torch.Tensor):
+        act_np = activations.detach().cpu().numpy()
+    else:
+        act_np = activations.copy()
+    
+    # 将张量展平成1D数组用于统计分析
+    flat_act = act_np.reshape(-1)
+    
+    # 1. 基本統計量計算
+    mean = np.mean(flat_act)
+    std = np.std(flat_act)
+    min_val = np.min(flat_act)
+    max_val = np.max(flat_act)
+    
+    # 2. 極端值分析
+    z_scores = np.abs((flat_act - mean) / (std + 1e-10))
+    extreme_mask = z_scores > threshold_z
+    extreme_value_ratio = np.sum(extreme_mask) / flat_act.size
+    extreme_values = flat_act[extreme_mask]
+    
+    # 取前10個極端值作為示例 (如果有的話)
+    extreme_indices = np.argsort(z_scores)[-10:][::-1]
+    extreme_examples = flat_act[extreme_indices].tolist()
+    
+    # 3. 分布形狀分析
+    # 計算偏斜度 (skewness)
+    skewness = float(scipy.stats.skew(flat_act))
+    
+    # 計算峰度 (kurtosis)
+    # 注意：scipy.stats.kurtosis 返回的是超出正態分布峰度(3)的部分
+    kurtosis = float(scipy.stats.kurtosis(flat_act) + 3)  # 轉換為原始峰度定義
+    
+    # 判斷偏斜度和峰度是否異常
+    skewness_abnormal = abs(skewness) > skew_threshold
+    kurtosis_abnormal = kurtosis > kurt_threshold + 3 or kurtosis < 3 - kurt_threshold
+    
+    # 4. 梯度分析（檢測相鄰神經元間的激活值變化）
+    gradient_abnormal_count = 0
+    total_gradients = 0
+    
+    # 對每個維度進行梯度計算
+    for axis in range(act_np.ndim):
+        # 計算沿著該軸的梯度
+        grad_slices = [slice(None)] * act_np.ndim
+        grad_slices[axis] = slice(1, None)
+        prev_slices = [slice(None)] * act_np.ndim
+        prev_slices[axis] = slice(None, -1)
+        
+        gradients = act_np[tuple(grad_slices)] - act_np[tuple(prev_slices)]
+        
+        # 標準化梯度
+        grad_mean = np.mean(gradients)
+        grad_std = np.std(gradients)
+        norm_gradients = np.abs((gradients - grad_mean) / (grad_std + 1e-10))
+        
+        # 計算異常梯度的數量
+        gradient_abnormal_count += np.sum(norm_gradients > gradient_threshold)
+        total_gradients += gradients.size
+    
+    gradient_abnormal_ratio = gradient_abnormal_count / (total_gradients + 1e-10)
+    
+    # 5. 激活值分布集中度分析
+    # 使用基尼係數衡量激活值的集中程度
+    sorted_act = np.sort(np.abs(flat_act))
+    n = len(sorted_act)
+    index = np.arange(1, n + 1)
+    gini = (np.sum((2 * index - n - 1) * sorted_act)) / (n * np.sum(sorted_act))
+    
+    # 判斷激活值是否過度集中 (基尼係數過高)
+    concentration_abnormal = gini > 0.8  # 閾值可根據經驗調整
+    
+    # 6. 計算綜合異常分數 (0-1)
+    anomaly_factors = [
+        extreme_value_ratio * 2.0,  # 極端值加權
+        skewness_abnormal * 0.5,    # 偏斜度異常
+        kurtosis_abnormal * 0.5,    # 峰度異常
+        gradient_abnormal_ratio,    # 梯度異常
+        concentration_abnormal * 0.5 # 集中度異常
+    ]
+    anomaly_score = min(1.0, sum(anomaly_factors))
+    
+    # 7. 判斷是否存在異常
+    has_anomaly = anomaly_score > 0.3  # 異常閾值可調整
+    
+    return {
+        'has_anomaly': has_anomaly,
+        'anomaly_score': float(anomaly_score),
+        'extreme_value_ratio': float(extreme_value_ratio),
+        'skewness': float(skewness),
+        'kurtosis': float(kurtosis),
+        'skewness_abnormal': bool(skewness_abnormal),
+        'kurtosis_abnormal': bool(kurtosis_abnormal),
+        'gradient_abnormal_ratio': float(gradient_abnormal_ratio),
+        'concentration_abnormal': bool(concentration_abnormal),
+        'extreme_value_examples': extreme_examples,
+        'gini_coefficient': float(gini),
+        'min_value': float(min_val),
+        'max_value': float(max_val)
+    }
+
+
+def analyze_layer_relationships(activations_dict: Dict[str, Union[torch.Tensor, np.ndarray]],
+                               reference_layer: Optional[str] = None,
+                               metrics: List[str] = ['correlation', 'mutual_information', 'structural_similarity']) -> Dict[str, Any]:
+    """
+    # 分析不同層之間的相互關係
+    
+    此函數分析神經網絡中不同層之間的關係，包括相關性、互信息和結構相似性等指標。
     
     Args:
-        gradients: 層參數梯度張量
+        activations_dict: 層名稱到激活值的字典
+        reference_layer: 參考層名稱，如果提供，則分析所有層與此層的關係
+        metrics: 要計算的關係指標列表
         
     Returns:
-        包含梯度分析指標的字典
+        包含層間關係分析結果的字典
     """
-    if gradients is None:
-        return {
-            'has_gradient': False,
-            'mean_gradient': 0.0,
-            'gradient_norm': 0.0,
-            'zero_gradients_ratio': 1.0,
-            'gradient_signal_to_noise': 0.0
-        }
+    import skimage.metrics
+    from scipy.stats import entropy
     
-    # 計算梯度範數
-    gradient_norm = torch.norm(gradients).item()
+    if len(activations_dict) < 2:
+        return {'error': '需要至少兩個層的激活值進行關係分析'}
     
-    # 計算梯度的平均值和標準差
-    mean_gradient = gradients.mean().item()
-    std_gradient = gradients.std().item()
+    # 預處理：將所有層的激活值調整為可比較的格式
+    processed_activations = {}
+    for layer_name, activation in activations_dict.items():
+        # 轉換為numpy陣列
+        if isinstance(activation, torch.Tensor):
+            activation_np = activation.detach().cpu().numpy()
+        else:
+            activation_np = np.asarray(activation)
+        
+        # 對於每個批次樣本，將激活值展平為特徵向量
+        if len(activation_np.shape) > 2:
+            # 保留批次維度，合併其他維度
+            activation_np = activation_np.reshape(activation_np.shape[0], -1)
+        
+        processed_activations[layer_name] = activation_np
     
-    # 計算零梯度的比例
-    flat_gradients = gradients.reshape(-1)
-    zero_count = torch.sum(flat_gradients == 0.0).item()
-    zero_ratio = zero_count / flat_gradients.numel()
+    # 確定要比較的層
+    layer_names = list(processed_activations.keys())
     
-    # 計算梯度信噪比 (信號強度/噪聲強度)
-    signal_to_noise = abs(mean_gradient) / (std_gradient + 1e-8) if std_gradient > 0 else 0.0
+    if reference_layer is not None and reference_layer in layer_names:
+        # 如果指定了參考層，所有其他層都與參考層比較
+        comparison_pairs = [(reference_layer, layer) for layer in layer_names if layer != reference_layer]
+    else:
+        # 否則，計算所有可能的層對
+        comparison_pairs = [(layer1, layer2) 
+                            for i, layer1 in enumerate(layer_names) 
+                            for layer2 in layer_names[i+1:]]
     
-    # 檢測梯度是否消失或爆炸
-    vanishing = gradient_norm < 1e-4
-    exploding = gradient_norm > 1e3
-    
-    return {
-        'has_gradient': True,
-        'mean_gradient': mean_gradient,
-        'gradient_norm': gradient_norm,
-        'zero_gradients_ratio': zero_ratio,
-        'gradient_signal_to_noise': signal_to_noise,
-        'gradient_vanishing': vanishing,
-        'gradient_exploding': exploding
+    # 初始化結果字典
+    results = {
+        'layer_pairs': [],
+        'metrics': {}
     }
+    
+    for metric in metrics:
+        results['metrics'][metric] = []
+    
+    # 對每對層計算關係指標
+    for layer1, layer2 in comparison_pairs:
+        results['layer_pairs'].append((layer1, layer2))
+        
+        act1 = processed_activations[layer1]
+        act2 = processed_activations[layer2]
+        
+        # 確保批次大小一致
+        min_batch = min(act1.shape[0], act2.shape[0])
+        act1 = act1[:min_batch]
+        act2 = act2[:min_batch]
+        
+        # 對於每個度量指標計算相應的關係值
+        if 'correlation' in metrics:
+            # 計算Pearson相關係數
+            corr_matrix = np.zeros((min_batch,))
+            for i in range(min_batch):
+                # 向量可能有不同長度，需要進行處理
+                # 方法1：使用較小的維度
+                feature_len1 = act1.shape[1]
+                feature_len2 = act2.shape[1]
+                
+                # 使用批次內的向量相似度
+                if feature_len1 != feature_len2:
+                    # 不同維度的向量需要特殊處理
+                    # 我們使用PCA的思想，將較大維度的向量投影到較小維度
+                    if feature_len1 > feature_len2:
+                        # 計算第一主成分
+                        vec1_centered = act1[i] - np.mean(act1[i])
+                        # 使用簡化版本，取前feature_len2個元素
+                        vec1 = vec1_centered[:feature_len2]
+                        vec2 = act2[i] - np.mean(act2[i])
+                    else:
+                        vec1 = act1[i] - np.mean(act1[i])
+                        vec2_centered = act2[i] - np.mean(act2[i])
+                        # 使用簡化版本，取前feature_len1個元素
+                        vec2 = vec2_centered[:feature_len1]
+                else:
+                    # 標準化向量
+                    vec1 = act1[i] - np.mean(act1[i])
+                    vec2 = act2[i] - np.mean(act2[i])
+                
+                norm1 = np.linalg.norm(vec1)
+                norm2 = np.linalg.norm(vec2)
+                
+                # 避免除零
+                if norm1 > 0 and norm2 > 0:
+                    corr = np.dot(vec1, vec2) / (norm1 * norm2)
+                    corr_matrix[i] = corr
+                else:
+                    corr_matrix[i] = 0
+            
+            avg_corr = np.mean(corr_matrix)
+            results['metrics']['correlation'].append(float(avg_corr))
+        
+        if 'mutual_information' in metrics:
+            # 使用直方圖估算互信息
+            mi_values = []
+            for i in range(min_batch):
+                # 由於向量可能有不同長度，我們使用直方圖方法計算互信息，不需要相同大小
+                try:
+                    # 將連續值離散化為直方圖
+                    hist_bins = 20
+                    
+                    # 選取數據進行處理
+                    x_sample = act1[i]
+                    y_sample = act2[i]
+                    
+                    # 如果向量太大，隨機抽樣以加速計算
+                    max_samples = 10000
+                    if len(x_sample) > max_samples:
+                        indices = np.random.choice(len(x_sample), max_samples, replace=False)
+                        x_sample = x_sample[indices]
+                    
+                    if len(y_sample) > max_samples:
+                        indices = np.random.choice(len(y_sample), max_samples, replace=False)
+                        y_sample = y_sample[indices]
+                    
+                    # 創建聯合直方圖
+                    hist_2d, _, _ = np.histogram2d(x_sample, y_sample, bins=hist_bins)
+                    
+                    # 確保和為1以形成聯合概率質量函數
+                    hist_sum = np.sum(hist_2d)
+                    if hist_sum > 0:
+                        hist_2d /= hist_sum
+                    
+                    # 計算邊緣分布
+                    p_x = np.sum(hist_2d, axis=1)
+                    p_y = np.sum(hist_2d, axis=0)
+                    
+                    # 避免log(0)
+                    hist_2d = np.where(hist_2d > 0, hist_2d, 1e-10)
+                    p_x = np.where(p_x > 0, p_x, 1e-10)
+                    p_y = np.where(p_y > 0, p_y, 1e-10)
+                    
+                    # 計算互信息
+                    # I(X;Y) = Σ p(x,y) log(p(x,y) / (p(x)p(y)))
+                    outer_product = np.outer(p_x, p_y)
+                    mi = np.sum(hist_2d * np.log(hist_2d / outer_product))
+                    mi_values.append(mi)
+                except:
+                    # 出錯時跳過
+                    continue
+            
+            avg_mi = np.mean(mi_values) if mi_values else 0.0
+            results['metrics']['mutual_information'].append(float(avg_mi))
+        
+        if 'structural_similarity' in metrics:
+            # 如果原始激活值是卷積特徵圖，使用結構相似性指數(SSIM)
+            # 檢查原始維度
+            orig_shapes = {
+                layer1: activations_dict[layer1].shape,
+                layer2: activations_dict[layer2].shape
+            }
+            
+            # 需要4D張量用於SSIM [batch, channels, height, width]
+            if len(orig_shapes[layer1]) == 4 and len(orig_shapes[layer2]) == 4:
+                # 獲取原始卷積特徵圖
+                feat1 = activations_dict[layer1]
+                feat2 = activations_dict[layer2]
+                
+                if isinstance(feat1, torch.Tensor):
+                    feat1 = feat1.detach().cpu().numpy()
+                if isinstance(feat2, torch.Tensor):
+                    feat2 = feat2.detach().cpu().numpy()
+                
+                # 計算每個批次的結構相似性
+                ssim_values = []
+                for i in range(min(feat1.shape[0], feat2.shape[0])):
+                    # 需要調整兩個特徵圖到相同大小
+                    # 選擇較小的尺寸
+                    f1 = feat1[i]
+                    f2 = feat2[i]
+                    
+                    c1 = min(f1.shape[0], f2.shape[0])
+                    h1, h2 = f1.shape[1], f2.shape[1]
+                    w1, w2 = f1.shape[2], f2.shape[2]
+                    
+                    # 對於每個通道計算SSIM，然後取平均
+                    channel_ssim = []
+                    for c in range(c1):
+                        # 調整大小
+                        if h1 != h2 or w1 != w2:
+                            from skimage.transform import resize
+                            
+                            # 將它們縮放到相同的大小
+                            target_h = min(h1, h2)
+                            target_w = min(w1, w2)
+                            
+                            img1 = resize(f1[c], (target_h, target_w))
+                            img2 = resize(f2[c], (target_h, target_w))
+                        else:
+                            img1 = f1[c]
+                            img2 = f2[c]
+                        
+                        # 標準化到0-1範圍，這是SSIM需要的
+                        img1 = (img1 - np.min(img1)) / (np.max(img1) - np.min(img1) + 1e-8)
+                        img2 = (img2 - np.min(img2)) / (np.max(img2) - np.min(img2) + 1e-8)
+                        
+                        # 計算SSIM
+                        try:
+                            ssim = skimage.metrics.structural_similarity(
+                                img1, img2, data_range=1.0
+                            )
+                            channel_ssim.append(ssim)
+                        except:
+                            # 出問題時跳過
+                            continue
+                    
+                    if channel_ssim:
+                        ssim_values.append(np.mean(channel_ssim))
+                
+                avg_ssim = np.mean(ssim_values) if ssim_values else 0.0
+                results['metrics']['structural_similarity'].append(float(avg_ssim))
+            else:
+                # 非卷積層，使用零值
+                results['metrics']['structural_similarity'].append(0.0)
+    
+    # 計算層級關係圖
+    layer_graph = {}
+    for i, (layer1, layer2) in enumerate(results['layer_pairs']):
+        # 使用第一個度量作為相關性分數
+        if metrics and metrics[0] in results['metrics'] and results['metrics'][metrics[0]]:
+            score = results['metrics'][metrics[0]][i]
+            
+            # 建立圖的邊
+            if layer1 not in layer_graph:
+                layer_graph[layer1] = {}
+            if layer2 not in layer_graph:
+                layer_graph[layer2] = {}
+                
+            layer_graph[layer1][layer2] = score
+            layer_graph[layer2][layer1] = score
+    
+    # 添加層關係圖到結果
+    results['layer_graph'] = layer_graph
+    
+    # 尋找高度相關的層對
+    high_correlation_threshold = 0.7
+    high_corr_pairs = []
+    
+    if 'correlation' in metrics:
+        for i, (layer1, layer2) in enumerate(results['layer_pairs']):
+            if results['metrics']['correlation'][i] > high_correlation_threshold:
+                high_corr_pairs.append((layer1, layer2, results['metrics']['correlation'][i]))
+    
+    results['high_correlation_pairs'] = sorted(high_corr_pairs, key=lambda x: x[2], reverse=True)
+    
+    return results 
 
-
-def calculate_activation_statistics(activations: Union[torch.Tensor, np.ndarray]) -> Dict[str, float]:
+# 添加適配函數，以便測試文件能夠使用 calculate_ 前綴
+def calculate_activation_statistics(activations: torch.Tensor) -> Dict[str, float]:
     """
-    # 計算激活值的統計指標
+    計算激活值的統計指標。這個函數是 compute_activation_distribution 的擴展版本，
+    增加了更多的統計指標。
     
     Args:
-        activations: 層級激活值張量或numpy陣列
+        activations: 層級激活值張量
         
     Returns:
         包含統計指標的字典
     """
-    # 將輸入轉換為numpy陣列以便計算統計量
-    if isinstance(activations, torch.Tensor):
-        activations_np = activations.detach().cpu().numpy()
-    else:
-        activations_np = np.asarray(activations)
+    # 確保輸入是張量
+    if not isinstance(activations, torch.Tensor):
+        activations = torch.tensor(activations, dtype=torch.float32)
     
-    # 將激活值展平
-    flat_activations = activations_np.reshape(-1)
+    # 將張量轉換為一維向量進行統計分析
+    flat_act = activations.reshape(-1)
     
-    # 計算基本統計量
-    mean = np.mean(flat_activations)
-    std = np.std(flat_activations)
-    minimum = np.min(flat_activations)
-    maximum = np.max(flat_activations)
-    median = np.median(flat_activations)
+    # 基本統計量
+    mean = torch.mean(flat_act).item()
+    std = torch.std(flat_act).item()
+    variance = torch.var(flat_act).item()
+    min_val = torch.min(flat_act).item()
+    max_val = torch.max(flat_act).item()
     
     # 計算分位數
-    q1 = np.percentile(flat_activations, 25)
-    q3 = np.percentile(flat_activations, 75)
+    sorted_act, _ = torch.sort(flat_act)
+    n = len(sorted_act)
+    median = sorted_act[n // 2].item() if n % 2 == 1 else (sorted_act[n // 2 - 1] + sorted_act[n // 2]).item() / 2
+    q1 = sorted_act[n // 4].item()
+    q3 = sorted_act[3 * n // 4].item()
     iqr = q3 - q1
     
-    # 計算高階統計量
-    skewness = scipy.stats.skew(flat_activations)
-    kurtosis = scipy.stats.kurtosis(flat_activations)
+    # 計算偏度和峰度
+    # 將張量轉換為numpy數組以使用scipy統計函數
+    np_act = flat_act.detach().cpu().numpy()
+    skewness = float(scipy.stats.skew(np_act))
+    kurtosis = float(scipy.stats.kurtosis(np_act))
     
-    # 計算範圍和方差
-    value_range = maximum - minimum
-    variance = np.var(flat_activations)
+    # 重用已有函數中的計算結果
+    dist_stats = compute_activation_distribution(activations)
+    sparsity = calculate_activation_sparsity(activations)
     
-    # 計算稀疏度 (零值的比例)
-    sparsity = np.sum(np.abs(flat_activations) < 1e-6) / len(flat_activations)
-    
-    # 計算正值比例
-    positive_fraction = np.sum(flat_activations > 0) / len(flat_activations)
-    
-    # 計算熵 (使用直方圖估算)
-    hist, bin_edges = np.histogram(flat_activations, bins=50, density=True)
-    hist = hist[hist > 0]  # 排除零概率區域
-    entropy = -np.sum(hist * np.log2(hist)) * (bin_edges[1] - bin_edges[0])
+    # 計算熵 (分布的不確定性)
+    # 首先創建直方圖並正規化為概率分布
+    hist, _ = np.histogram(np_act, bins=100, density=True)
+    hist = hist[hist > 0]  # 移除零概率
+    entropy_val = -np.sum(hist * np.log(hist))
     
     return {
-        'mean': float(mean),
-        'std': float(std),
-        'min': float(minimum),
-        'max': float(maximum),
-        'median': float(median),
-        'q1': float(q1),
-        'q3': float(q3),
-        'iqr': float(iqr),
-        'skewness': float(skewness),
-        'kurtosis': float(kurtosis),
-        'range': float(value_range),
-        'variance': float(variance),
-        'sparsity': float(sparsity),
-        'positive_fraction': float(positive_fraction),
-        'entropy': float(entropy)
+        'mean': mean,
+        'std': std,
+        'variance': variance,
+        'min': min_val,
+        'max': max_val,
+        'median': median,
+        'q1': q1,
+        'q3': q3,
+        'iqr': iqr,
+        'range': max_val - min_val,
+        'skewness': skewness,
+        'kurtosis': kurtosis,
+        'sparsity': sparsity,
+        'positive_fraction': dist_stats['positive_fraction'],
+        'entropy': float(entropy_val)
     }
 
-
-def calculate_activation_sparsity(activations: Union[torch.Tensor, np.ndarray], 
-                                 threshold: float = 1e-6) -> float:
+def calculate_activation_sparsity(activations: torch.Tensor, threshold: float = 1e-6) -> float:
     """
-    # 計算激活值的稀疏度 (零值或接近零值的比例)
+    計算激活值的稀疏度，即接近零的值的比例。
     
     Args:
-        activations: 層級激活值張量或numpy陣列
-        threshold: 視為零的閾值
+        activations: 層級激活值張量
+        threshold: 判定為零的閾值
         
     Returns:
-        稀疏度 (0-1之間的值，1表示完全稀疏，全是零)
+        稀疏度 (0-1之間的值，1表示全為零)
     """
-    if isinstance(activations, torch.Tensor):
-        # PyTorch實現
-        return (torch.abs(activations) < threshold).float().mean().item()
-    else:
-        # NumPy實現
-        activations_np = np.asarray(activations)
-        return np.sum(np.abs(activations_np) < threshold) / activations_np.size
+    if not isinstance(activations, torch.Tensor):
+        activations = torch.tensor(activations)
+    
+    flat_act = activations.reshape(-1)
+    zero_ratio = torch.sum(torch.abs(flat_act) <= threshold).float() / flat_act.numel()
+    
+    return zero_ratio.item()
 
-
-def calculate_activation_saturation(activations: Union[torch.Tensor, np.ndarray],
-                                   threshold: float = 0.9) -> float:
+def calculate_activation_saturation(activations: torch.Tensor, saturation_threshold: float = 0.95) -> float:
     """
-    # 計算激活值的飽和度 (接近最大值的比例)
+    計算激活值的飽和度，即接近最大值的比例。
     
     Args:
-        activations: 層級激活值張量或numpy陣列
-        threshold: 視為飽和的閾值 (相對於最大可能值)
+        activations: 層級激活值張量
+        saturation_threshold: 飽和閾值
         
     Returns:
-        飽和度 (0-1之間的值，1表示完全飽和)
+        飽和度 (0-1之間的值)
     """
-    if isinstance(activations, torch.Tensor):
-        # 標準化激活值
-        if activations.min() < 0 or activations.max() > 1:
-            max_val = activations.max()
-            normalized = activations / (max_val + 1e-8) if max_val > 0 else activations
-        else:
-            normalized = activations
-        
-        # 計算飽和比例
-        return (normalized > threshold).float().mean().item()
-    else:
-        # NumPy實現
-        activations_np = np.asarray(activations)
-        max_val = np.max(activations_np)
-        normalized = activations_np / (max_val + 1e-8) if max_val > 0 else activations_np
-        return np.sum(normalized > threshold) / activations_np.size
+    result = compute_saturation_metrics(activations, saturation_threshold)
+    return result['saturation_ratio']
 
-
-def calculate_effective_rank(activations: Union[torch.Tensor, np.ndarray]) -> float:
+def calculate_effective_rank(activations: torch.Tensor) -> float:
     """
-    # 計算激活值矩陣的有效秩 (使用奇異值)
+    計算激活值矩陣的有效秩，用於衡量特徵的多樣性。
     
     Args:
-        activations: 層級激活值張量或numpy陣列
+        activations: 層級激活值張量
         
     Returns:
-        有效秩 (浮點數，反映數據內在維度)
+        有效秩
     """
-    # 轉換為numpy陣列進行SVD分解
-    if isinstance(activations, torch.Tensor):
-        activations_np = activations.detach().cpu().numpy()
+    # 特殊情況：形狀為 (1,1,1) 或接近單元素的張量
+    if activations.numel() <= 1 or (len(activations.shape) == 3 and activations.shape[0] == 1 and activations.shape[1] == 1 and activations.shape[2] == 1):
+        return 1.0
+
+    # 處理張量維度
+    if len(activations.shape) == 4:  # 卷積層 [batch, channels, height, width]
+        # 將每個通道視為一個特徵，將空間維度展平
+        batch_size, channels, height, width = activations.shape
+        reshaped = activations.permute(0, 2, 3, 1).reshape(-1, channels)
+    elif len(activations.shape) == 2:  # 全連接層 [batch, neurons]
+        reshaped = activations
+    elif len(activations.shape) == 3:  # 序列數據 [batch, seq_len, features]
+        batch_size, seq_len, features = activations.shape
+        reshaped = activations.reshape(-1, features)
     else:
-        activations_np = np.asarray(activations)
+        # 嘗試將張量展平為2維
+        try:
+            reshaped = activations.reshape(activations.shape[0], -1)
+        except:
+            return 1.0  # 如果無法重塑，直接返回 1.0
     
-    # 如果是高維張量，將其重塑為矩陣
-    if len(activations_np.shape) > 2:
-        # 對於卷積層張量 [batch, channels, height, width]，轉為 [batch, channels*height*width]
-        activations_np = activations_np.reshape(activations_np.shape[0], -1)
-    
-    # 對於一維張量，轉換為列向量
-    if len(activations_np.shape) == 1:
-        activations_np = activations_np.reshape(-1, 1)
-    
-    # 處理極小的矩陣
-    if min(activations_np.shape) <= 1:
+    # 確保矩陣有足夠的元素用於SVD
+    if reshaped.shape[0] <= 1 or reshaped.shape[1] <= 1:
         return 1.0
     
-    # 計算SVD
+    # 使用奇異值分解計算有效秩
     try:
-        u, s, vh = np.linalg.svd(activations_np, full_matrices=False)
+        # 中心化數據
+        centered = reshaped - torch.mean(reshaped, dim=0)
+        # 奇異值分解
+        _, s, _ = torch.svd(centered)
         
-        # 標準化奇異值
-        normalized_s = s / np.sum(s)
+        # 確保奇異值非零
+        if torch.sum(s) < 1e-10:
+            return 1.0
+            
+        # 計算有效秩
+        normalized_s = s / torch.sum(s)
+        entropy = -torch.sum(normalized_s * torch.log(normalized_s + 1e-10))
+        effective_rank = torch.exp(entropy).item()
         
-        # 計算有效秩 (基於奇異值的熵)
-        entropy = -np.sum(normalized_s * np.log(normalized_s + 1e-10))
-        effective_rank = np.exp(entropy)
-        
-        return float(effective_rank)
-    except:
-        # 如果SVD計算失敗，返回最小維度作為有效秩的估計
-        return float(min(activations_np.shape))
+        # 檢查結果是否為 NaN
+        if torch.isnan(torch.tensor(effective_rank)):
+            return 1.0
+            
+        return effective_rank
+    except Exception as e:
+        # 失敗時，返回最小維度作為替代
+        return min(reshaped.shape)
 
-
-def calculate_feature_coherence(activations: Union[torch.Tensor, np.ndarray]) -> float:
+def calculate_feature_coherence(activations: torch.Tensor) -> float:
     """
-    # 計算特徵圖間的一致性 (對卷積層特別有用)
+    計算特徵間的一致性，衡量不同通道之間的相關程度。
     
     Args:
-        activations: 層級激活值張量或numpy陣列，形狀為 [batch, channels, height, width]
+        activations: 層級激活值張量，形狀為 [batch, channels, height, width]
         
     Returns:
-        特徵一致性值 (-1到1之間，1表示完全一致)
+        一致性指標
     """
-    # 檢查輸入維度
-    if isinstance(activations, torch.Tensor):
-        if len(activations.shape) < 3:
-            raise ValueError("特徵一致性計算需要至少3維張量 [batch, channels, ...]")
-        
-        # 處理卷積層特徵圖
-        if len(activations.shape) == 4:  # [batch, channels, height, width]
-            batch_size, channels = activations.shape[0], activations.shape[1]
-            
-            # 將特徵圖展平
-            reshaped = activations.reshape(batch_size, channels, -1)
-            
-            # 計算每一批次中通道間的相關性
-            corr_sum = 0.0
-            count = 0
-            
-            for b in range(batch_size):
-                for i in range(channels):
-                    for j in range(i+1, channels):
-                        # 計算通道i和j之間的相關係數
-                        x = reshaped[b, i]
-                        y = reshaped[b, j]
-                        
-                        x_centered = x - torch.mean(x)
-                        y_centered = y - torch.mean(y)
-                        
-                        x_norm = torch.norm(x_centered)
-                        y_norm = torch.norm(y_centered)
-                        
-                        if x_norm > 0 and y_norm > 0:
-                            corr = torch.dot(x_centered, y_centered) / (x_norm * y_norm)
-                            corr_sum += corr.item()
-                            count += 1
-            
-            # 計算平均相關係數
-            mean_corr = corr_sum / count if count > 0 else 0.0
-            return mean_corr
-        else:
-            # 非標準卷積層特徵，簡化計算
-            activations = activations.reshape(activations.shape[0], activations.shape[1], -1)
-            return calculate_feature_coherence(activations)
-    else:
-        # 轉換為PyTorch張量並重新調用函數
-        return calculate_feature_coherence(torch.tensor(activations))
-
-
-def calculate_layer_similarity(layer1: Union[torch.Tensor, np.ndarray], 
-                              layer2: Union[torch.Tensor, np.ndarray]) -> Dict[str, float]:
-    """
-    # 計算兩個層之間的相似度
+    # 確認輸入是4D張量
+    if len(activations.shape) != 4:
+        raise ValueError(f"需要4D張量，當前形狀: {activations.shape}")
     
-    Args:
-        layer1: 第一個層的激活值
-        layer2: 第二個層的激活值
-        
-    Returns:
-        包含不同相似度指標的字典
-    """
-    # 轉換為PyTorch張量
-    if not isinstance(layer1, torch.Tensor):
-        layer1 = torch.tensor(layer1)
-    if not isinstance(layer2, torch.Tensor):
-        layer2 = torch.tensor(layer2)
+    batch_size, channels, height, width = activations.shape
     
-    # 將張量展平為矩陣 [batch, features]
-    if len(layer1.shape) > 2:
-        layer1 = layer1.reshape(layer1.shape[0], -1)
-    if len(layer2.shape) > 2:
-        layer2 = layer2.reshape(layer2.shape[0], -1)
+    if channels <= 1:
+        return 1.0  # 只有一個通道時，一致性為1
     
-    # 確保批次大小一致
-    if layer1.shape[0] != layer2.shape[0]:
-        raise ValueError(f"層的批次大小不匹配: {layer1.shape[0]} vs {layer2.shape[0]}")
-    
-    # 計算相關係數
+    # 計算每對通道之間的相關係數
     correlations = []
-    for i in range(layer1.shape[0]):
-        vec1 = layer1[i].float()
-        vec2 = layer2[i].float()
-        
-        # 中心化
-        vec1 = vec1 - vec1.mean()
-        vec2 = vec2 - vec2.mean()
-        
-        # 標準化
-        norm1 = torch.norm(vec1)
-        norm2 = torch.norm(vec2)
-        
-        if norm1 > 0 and norm2 > 0:
-            corr = torch.dot(vec1, vec2) / (norm1 * norm2)
-            correlations.append(corr.item())
     
-    # 計算餘弦相似度
-    layer1_flat = layer1.reshape(-1).float()
-    layer2_flat = layer2.reshape(-1).float()
-    cosine_sim = torch.nn.functional.cosine_similarity(layer1_flat.unsqueeze(0), 
-                                                      layer2_flat.unsqueeze(0)).item()
+    # 將每個通道展平為向量
+    flattened = activations.reshape(batch_size, channels, -1)
     
-    return {
-        'mean_correlation': np.mean(correlations) if correlations else 0.0,
-        'cosine_similarity': cosine_sim
-    }
+    # 對於每個批次樣本
+    for b in range(batch_size):
+        # 計算當前批次的通道間相關係數
+        batch_correlations = []
+        for i in range(channels):
+            for j in range(i+1, channels):
+                # 提取兩個通道的特徵向量
+                vec1 = flattened[b, i]
+                vec2 = flattened[b, j]
+                
+                # 標準化
+                vec1 = (vec1 - torch.mean(vec1)) / (torch.std(vec1) + 1e-8)
+                vec2 = (vec2 - torch.mean(vec2)) / (torch.std(vec2) + 1e-8)
+                
+                # 計算相關係數
+                corr = torch.mean(vec1 * vec2).item()
+                batch_correlations.append(abs(corr))  # 使用絕對值，因為我們關心的是關係強度而非方向
+        
+        # 計算當前批次的平均相關
+        if batch_correlations:
+            correlations.append(np.mean(batch_correlations))
+    
+    # 計算所有批次的平均相關
+    if correlations:
+        return np.mean(correlations)
+    else:
+        return 0.0  # 如果無法計算，返回零
 
-
-def calculate_activation_dynamics(epochs_activations: Dict[int, Union[torch.Tensor, np.ndarray]]) -> Dict[str, Any]:
+def calculate_activation_dynamics(epoch_activations: Dict[int, torch.Tensor]) -> Dict[str, Any]:
     """
-    # 計算激活值隨訓練進行的動態變化
+    計算不同輪次間的激活值變化。
     
     Args:
-        epochs_activations: 字典，鍵為輪次，值為該輪次的激活值
+        epoch_activations: 輪次到激活值的字典
         
     Returns:
         包含動態變化指標的字典
     """
-    # 排序輪次
-    epochs = sorted(epochs_activations.keys())
+    if len(epoch_activations) < 2:
+        return {'error': '至少需要兩個輪次的數據'}
     
-    if len(epochs) < 2:
-        return {
-            'epochs': epochs,
-            'mean_changes': [],
-            'std_changes': [],
-            'mean_change_rate': 0.0
+    epochs = sorted(epoch_activations.keys())
+    
+    # 計算每個輪次的基本統計量
+    stats = {}
+    for epoch in epochs:
+        activations = epoch_activations[epoch]
+        stats[epoch] = {
+            'mean': torch.mean(activations).item(),
+            'std': torch.std(activations).item(),
+            'min': torch.min(activations).item(),
+            'max': torch.max(activations).item()
         }
     
-    mean_values = []
-    std_values = []
+    # 計算輪次間的變化
+    mean_changes = []
+    std_changes = []
     
-    # 計算每個輪次的統計量
-    for epoch in epochs:
-        activations = epochs_activations[epoch]
+    for i in range(1, len(epochs)):
+        prev_epoch = epochs[i-1]
+        curr_epoch = epochs[i]
         
-        # 轉換為numpy陣列
-        if isinstance(activations, torch.Tensor):
-            act_np = activations.detach().cpu().numpy()
-        else:
-            act_np = np.asarray(activations)
+        mean_change = stats[curr_epoch]['mean'] - stats[prev_epoch]['mean']
+        mean_changes.append(mean_change)
         
-        mean_values.append(np.mean(act_np))
-        std_values.append(np.std(act_np))
+        std_change = stats[curr_epoch]['std'] - stats[prev_epoch]['std']
+        std_changes.append(std_change)
     
-    # 計算相鄰輪次之間的變化
-    mean_changes = [abs(mean_values[i+1] - mean_values[i]) for i in range(len(mean_values)-1)]
-    std_changes = [abs(std_values[i+1] - std_values[i]) for i in range(len(std_values)-1)]
-    
-    # 計算變化率
-    mean_change_rate = np.mean(mean_changes) / (np.mean(mean_values) + 1e-8)
+    # 計算平均變化率
+    mean_change_rate = sum(abs(change) for change in mean_changes) / len(mean_changes) if mean_changes else 0
     
     return {
         'epochs': epochs,
+        'epoch_stats': stats,
         'mean_changes': mean_changes,
         'std_changes': std_changes,
-        'mean_change_rate': float(mean_change_rate)
+        'mean_change_rate': mean_change_rate
+    }
+
+def calculate_layer_similarity(activations1: torch.Tensor, activations2: torch.Tensor) -> Dict[str, float]:
+    """
+    計算兩個層的激活值之間的相似度。
+    
+    Args:
+        activations1: 第一個層的激活值
+        activations2: 第二個層的激活值
+        
+    Returns:
+        包含不同相似度指標的字典
+    """
+    # 確保張量形狀相同
+    if activations1.shape != activations2.shape:
+        raise ValueError(f"激活值形狀不匹配: {activations1.shape} vs {activations2.shape}")
+    
+    # 計算餘弦相似度
+    cosine_sim = compute_layer_similarity(activations1, activations2, method='cosine')
+    
+    # 計算皮爾遜相關係數
+    correlation = compute_layer_similarity(activations1, activations2, method='correlation')
+    
+    # 如果是批次數據，計算每個樣本的相關
+    if activations1.dim() > 1 and activations1.shape[0] > 1:
+        batch_correlations = []
+        for i in range(activations1.shape[0]):
+            sample1 = activations1[i].reshape(-1)
+            sample2 = activations2[i].reshape(-1)
+            
+            # 標準化
+            sample1 = (sample1 - torch.mean(sample1)) / (torch.std(sample1) + 1e-8)
+            sample2 = (sample2 - torch.mean(sample2)) / (torch.std(sample2) + 1e-8)
+            
+            # 計算相關
+            batch_corr = torch.mean(sample1 * sample2).item()
+            batch_correlations.append(batch_corr)
+        
+        mean_correlation = np.mean(batch_correlations)
+    else:
+        mean_correlation = correlation
+    
+    return {
+        'cosine_similarity': cosine_sim,
+        'correlation': correlation,
+        'mean_correlation': mean_correlation
     } 

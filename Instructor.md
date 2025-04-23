@@ -161,15 +161,24 @@ layer_activation_dist = analysis_results.get_activation_distribution('patch_embe
     *   ✅ 為新實現的分布和性能視覺化功能添加單元測試 (`tests/test_distribution_plots.py`, `tests/test_performance_plots.py`).
     *   ✅ 為推理分析器添加單元測試 (`tests/test_inference_analyzer.py`)。
 
-### 階段三：中間層數據分析與報告生成（待開始）
+### 階段三：中間層數據分析與報告生成（部分進行中）
 
 1.  **中間數據加載與處理**
     *   ❌ 完成 `HookDataLoader` 以載入 hooks 目錄中的激活值數據。
     *   ❌ 實現張量數據的預處理和正規化功能。
 2.  **層級活動分析**
-    *   ❌ 實現 `layer_activity_metrics` 計算激活值的統計量和特徵。
-    *   ❌ 設計層級行為分析算法，檢測異常激活模式。
-    *   ❌ 實現層與層之間的相互關係分析。
+    *   ✅ 實現 `layer_activity_metrics.py` 計算激活值的統計量和特徵，包括：
+        * calculate_activation_statistics: 計算激活值統計指標（均值、標準差、分位數等）
+        * calculate_activation_sparsity: 計算激活值稀疏度
+        * calculate_activation_saturation: 計算激活值飽和度
+        * calculate_effective_rank: 計算激活值矩陣有效秩
+        * calculate_feature_coherence: 計算特徵圖間一致性
+        * detect_dead_neurons: 檢測失活神經元
+        * calculate_activation_dynamics: 計算訓練過程中激活值動態變化
+        * calculate_layer_similarity: 計算不同層間相似度
+    *   ✅ 修復相關測試文件 `tests/test_layer_activity_metrics.py`，測試成功通過
+    *   ✅ 設計層級行為分析算法，檢測異常激活模式。
+    *   ✅ 實現層與層之間的相互關係分析。
 3.  **報告生成器實現**
     *   ❌ 設計 `ReportGenerator`，整合分析結果到結構化報告。
     *   ❌ 支持多種報告格式（Markdown、HTML、PDF）。
@@ -180,6 +189,9 @@ layer_activation_dist = analysis_results.get_activation_distribution('patch_embe
         * `examples/cross_validation_example.py`：展示交叉驗證評估模型表現。
         * `examples/analyze_training_dynamics.py`：展示分析訓練過程的動態特性。
         * `examples/feature_importance_example.py`：展示特徵重要性分析。
+5.  **其他修復**
+    *   ✅ 修正 `visualization/__init__.py` 中的模塊名稱錯誤 (ModelStructurePlots -> ModelStructurePlotter)
+    *   ✅ 更新主 `__init__.py` 中的導入，將 ModelDataLoader 改為正確的 HookDataLoader 和 ExperimentLoader
 
 ### 階段四：高級分析與生產環境準備（待開始）
 

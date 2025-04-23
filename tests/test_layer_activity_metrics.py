@@ -12,7 +12,9 @@ from metrics.layer_activity_metrics import (
     calculate_feature_coherence,
     detect_dead_neurons,
     calculate_activation_dynamics,
-    calculate_layer_similarity
+    calculate_layer_similarity,
+    detect_activation_anomalies,
+    analyze_layer_relationships
 )
 
 
@@ -192,6 +194,159 @@ def test_handle_different_input_formats():
     # 檢查兩者都能正確處理
     assert 'mean' in stats_torch
     assert 'mean' in stats_numpy
+
+
+def test_detect_activation_anomalies():
+    """測試檢測異常激活模式功能"""
+    # 創建正常激活值（近似正態分布）
+    normal_activation = torch.randn(32, 64, 16, 16)
+    
+    # 創建異常激活值（引入極端值）
+    abnormal_activation = torch.randn(32, 64, 16, 16)
+    abnormal_activation[0, 0, 0, 0] = 1000.0  # 引入極端值
+    
+    # 創建偏斜分布激活值
+    skewed_activation = torch.pow(torch.abs(torch.randn(32, 64, 16, 16)), 2)  # 平方會使分布右偏
+    
+    # 創建高峰度激活值（多極端值）
+    high_kurtosis = torch.randn(32, 64, 16, 16)
+    extreme_positions = torch.randint(0, 32, (100,)), torch.randint(0, 64, (100,)), torch.randint(0, 16, (100,)), torch.randint(0, 16, (100,))
+    high_kurtosis[extreme_positions] = torch.randn(100) * 10  # 在隨機位置設置極端值
+    
+    # 創建梯度異常激活值
+    gradient_abnormal = torch.ones(32, 64, 16, 16)
+    gradient_abnormal[0, 0, 8, 8] = 100.0  # 創建一個尖峰，產生大梯度
+    
+    # 檢測異常
+    normal_result = detect_activation_anomalies(normal_activation)
+    abnormal_result = detect_activation_anomalies(abnormal_activation)
+    skewed_result = detect_activation_anomalies(skewed_activation)
+    kurtosis_result = detect_activation_anomalies(high_kurtosis)
+    gradient_result = detect_activation_anomalies(gradient_abnormal)
+    
+    # 檢查結果
+    # 1. 確認返回正確的字典鍵
+    expected_keys = ['has_anomaly', 'anomaly_score', 'extreme_value_ratio', 
+                     'skewness', 'kurtosis', 'skewness_abnormal', 'kurtosis_abnormal',
+                     'gradient_abnormal_ratio', 'concentration_abnormal', 'extreme_value_examples']
+    
+    for key in expected_keys:
+        assert key in normal_result
+        assert key in abnormal_result
+    
+    # 2. 確認異常檢測結果合理
+    # 正常激活值應該沒有或很少異常
+    assert normal_result['anomaly_score'] < 0.5
+    
+    # 有極端值的激活應該檢測到異常
+    assert abnormal_result['has_anomaly']
+    assert abnormal_result['extreme_value_ratio'] > 0
+    assert 1000.0 in abnormal_result['extreme_value_examples'] or abs(1000.0 - abnormal_result['extreme_value_examples'][0]) < 1.0
+    
+    # 偏斜分布應該有較高的偏斜度
+    assert abs(skewed_result['skewness']) > abs(normal_result['skewness'])
+    
+    # 高峰度激活值應該有較高的峰度
+    assert kurtosis_result['anomaly_score'] > normal_result['anomaly_score']
+    
+    # 梯度異常激活值應該檢測到梯度問題
+    assert gradient_result['has_anomaly']
+    assert gradient_result['gradient_abnormal_ratio'] > 0
+
+
+def test_analyze_layer_relationships():
+    """測試分析層與層之間關係功能"""
+    # 創建多個層的激活值
+    batch_size = 16
+    feature_size = 32
+    
+    # 創建基準層
+    base_layer = torch.randn(batch_size, feature_size)
+    
+    # 創建高度相關的層
+    highly_correlated = base_layer + torch.randn(batch_size, feature_size) * 0.1
+    
+    # 創建低相關的層
+    low_correlated = torch.randn(batch_size, feature_size)
+    
+    # 創建一個4D激活值（用於測試結構相似性）
+    conv_layer1 = torch.randn(batch_size, 8, 8, 8)
+    conv_layer2 = torch.randn(batch_size, 8, 8, 8)
+    
+    # 創建層激活值字典
+    activations_dict = {
+        'base': base_layer,
+        'high_corr': highly_correlated,
+        'low_corr': low_correlated,
+        'conv1': conv_layer1,
+        'conv2': conv_layer2
+    }
+    
+    # 測試不同的指標組合
+    # 1. 只使用相關性指標
+    corr_result = analyze_layer_relationships(
+        activations_dict,
+        metrics=['correlation']
+    )
+    
+    # 2. 使用所有指標
+    full_result = analyze_layer_relationships(
+        activations_dict,
+        metrics=['correlation', 'mutual_information', 'structural_similarity']
+    )
+    
+    # 3. 指定參考層
+    ref_result = analyze_layer_relationships(
+        activations_dict,
+        reference_layer='base',
+        metrics=['correlation']
+    )
+    
+    # 檢查結果
+    # 1. 確認結果包含預期的鍵
+    assert 'layer_pairs' in corr_result
+    assert 'metrics' in corr_result
+    assert 'layer_graph' in corr_result
+    
+    # 2. 確認度量結果合理
+    assert 'correlation' in corr_result['metrics']
+    assert len(corr_result['layer_pairs']) == len(corr_result['metrics']['correlation'])
+    
+    # 檢查完整結果包含所有請求的度量
+    assert 'correlation' in full_result['metrics']
+    assert 'mutual_information' in full_result['metrics']
+    assert 'structural_similarity' in full_result['metrics']
+    
+    # 3. 驗證參考層模式
+    assert len(ref_result['layer_pairs']) == 4  # 4對(base與其他4層)
+    for pair in ref_result['layer_pairs']:
+        assert 'base' in pair
+    
+    # 4. 驗證高相關層被正確標識
+    base_high_pair = ('base', 'high_corr')
+    base_low_pair = ('base', 'low_corr')
+    
+    # 查找這些對應的索引
+    base_high_idx = -1
+    base_low_idx = -1
+    
+    for i, pair in enumerate(full_result['layer_pairs']):
+        if set(pair) == set(base_high_pair):
+            base_high_idx = i
+        elif set(pair) == set(base_low_pair):
+            base_low_idx = i
+    
+    # 確保找到了這些對
+    assert base_high_idx != -1
+    assert base_low_idx != -1
+    
+    # 驗證高相關層對的分數高於低相關層對
+    assert full_result['metrics']['correlation'][base_high_idx] > full_result['metrics']['correlation'][base_low_idx]
+    
+    # 5. 驗證層級關係圖
+    assert 'base' in full_result['layer_graph']
+    assert 'high_corr' in full_result['layer_graph']
+    assert 'high_corr' in full_result['layer_graph']['base']
 
 
 def test_error_handling():

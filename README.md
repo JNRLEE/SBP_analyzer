@@ -195,11 +195,23 @@ perf_plotter.plot_loss_curve(loss_history, title='Training Loss')
 - ✅ 模型結構分析功能
 - ✅ 訓練動態分析功能
 - ✅ 視覺化模組 (分布、性能和模型結構視覺化)
-- ✅ 層級活動指標計算功能
+- ✅ 層級活動指標計算功能，包括：
+  - 激活值統計分析 (均值、標準差、分位數等)
+  - 稀疏度和飽和度計算
+  - 有效秩和特徵一致性分析
+  - 死亡神經元檢測
+  - 層間相似度計算
+  - 異常激活模式檢測
+  - 層與層之間的關係分析
+- ✅ 相關測試文件 (tests/test_layer_activity_metrics.py)
+
+最近修復:
+- ✅ 修正 visualization/__init__.py 中的模塊名稱錯誤
+- ✅ 更新主 __init__.py 中的導入，修正資料載入器名稱
+- ✅ 修復 calculate_effective_rank 函數處理特殊形狀張量的問題
 
 正在進行中:
-- 🔄 中間層數據加載與處理
-- 🔄 層級行為分析算法
+- 🔄 中間層數據加載與處理 (HookDataLoader 實現)
 - 🔄 報告生成器實現
 
 ## 貢獻
