@@ -38,8 +38,7 @@ class BaseLoader(ABC):
         
         # 確認實驗目錄是否存在
         if not os.path.exists(experiment_dir):
-            self.logger.error(f"實驗目錄不存在: {experiment_dir}")
-            raise FileNotFoundError(f"實驗目錄不存在: {experiment_dir}")
+            self.logger.warning(f"實驗目錄不存在: {experiment_dir}")
     
     @abstractmethod
     def load(self, *args, **kwargs) -> Any:

@@ -1,0 +1,96 @@
+{
+    "model_name": "TestModel",
+    "model_type": null,
+    "architecture_type": "cnn",
+    "total_params": 0,
+    "trainable_params": 0,
+    "non_trainable_params": 0,
+    "layer_count": 3,
+    "layer_types": {
+        "Conv2D": 2,
+        "ReLU": 1
+    },
+    "parameter_distribution": {},
+    "model_depth": 0,
+    "sparse_layers": [],
+    "largest_layers": [
+        {
+            "layer_id": "layer1",
+            "type": "Conv2D",
+            "parameters": 0
+        },
+        {
+            "layer_id": "layer2",
+            "type": "ReLU",
+            "parameters": 0
+        },
+        {
+            "layer_id": "layer3",
+            "type": "Conv2D",
+            "parameters": 0
+        }
+    ],
+    "layer_complexity": {
+        "layer1": {
+            "parameter_complexity": 0,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 0,
+            "complexity_score": null
+        },
+        "layer2": {
+            "parameter_complexity": 0,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 0,
+            "complexity_score": null
+        },
+        "layer3": {
+            "parameter_complexity": 0,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 0,
+            "complexity_score": null
+        }
+    },
+    "weight_distributions": {},
+    "sequential_paths": [
+        [
+            {
+                "id": "layer1",
+                "type": "Conv2D"
+            }
+        ],
+        [
+            {
+                "id": "layer2",
+                "type": "ReLU"
+            }
+        ],
+        [
+            {
+                "id": "layer3",
+                "type": "Conv2D"
+            }
+        ]
+    ],
+    "parameter_efficiency": {
+        "flops_per_param": 0.0,
+        "params_utilization": 1.0,
+        "relative_efficiency": 1.0
+    },
+    "model_complexity": {
+        "total_params": 0,
+        "total_flops": 0,
+        "total_memory": 0,
+        "flops_per_param": 0
+    },
+    "layer_connectivity": {
+        "avg_indegree": 0,
+        "avg_outdegree": 0,
+        "max_indegree": 0,
+        "max_outdegree": 0,
+        "bottleneck_layers": [],
+        "hub_layers": []
+    }
+}

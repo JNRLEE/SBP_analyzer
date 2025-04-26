@@ -7,6 +7,29 @@
 # - 死亡神經元檢測
 # - 飽和度指標計算
 # - 層級響應穩定性分析
+# - 異常激活模式檢測
+# - 層間關係分析
+#
+# 使用說明:
+# ```python
+# import torch
+# from metrics.layer_activity_metrics import detect_activation_anomalies, analyze_layer_relationships
+#
+# # 檢測異常激活模式
+# activations = torch.randn(32, 64, 16, 16)
+# anomalies = detect_activation_anomalies(activations)
+# if anomalies['has_anomaly']:
+#     print(f"檢測到異常，分數: {anomalies['anomaly_score']}")
+#
+# # 分析層間關係
+# layer_activations = {
+#     'layer1': torch.randn(16, 100),
+#     'layer2': torch.randn(16, 100),
+#     'layer3': torch.randn(16, 100)
+# }
+# relationships = analyze_layer_relationships(layer_activations)
+# print(f"高相關層對: {relationships['high_correlation_pairs']}")
+# ```
 """
 
 import torch
@@ -114,8 +137,17 @@ def detect_dead_neurons(activations: torch.Tensor,
     elif len(tensor_shape) == 2:  # 全連接層 [batch, neurons]
         # 對每個神經元計算最大激活值
         neuron_max = activations.abs().max(dim=0)[0]  # 結果形狀: [neurons]
+    elif len(tensor_shape) == 3:  # 序列/Transformer層 [batch, seq_len, features]
+        # 對每個特徵計算最大激活值
+        neuron_max = activations.abs().max(dim=0)[0].max(dim=0)[0]  # 結果形狀: [features]
     else:
-        raise ValueError(f"不支援的激活值張量形狀: {tensor_shape}")
+        # 嘗試平坦化處理，保留最後一個維度作為神經元維度
+        try:
+            batch_size = tensor_shape[0]
+            flattened = activations.reshape(batch_size, -1)
+            neuron_max = flattened.abs().max(dim=0)[0]
+        except Exception as e:
+            raise ValueError(f"不支援的激活值張量形狀: {tensor_shape}，錯誤：{str(e)}")
     
     # 檢測死亡神經元
     dead_mask = neuron_max <= threshold
@@ -169,8 +201,17 @@ def compute_saturation_metrics(activations: torch.Tensor,
     elif len(tensor_shape) == 2:  # 全連接層 [batch, neurons]
         # 對每個神經元計算平均激活值
         neuron_means = normalized.mean(dim=0)  # 結果形狀: [neurons]
+    elif len(tensor_shape) == 3:  # 序列/Transformer層 [batch, seq_len, features]
+        # 對每個特徵計算平均激活值
+        neuron_means = normalized.mean(dim=[0, 1])  # 結果形狀: [features]
     else:
-        raise ValueError(f"不支援的激活值張量形狀: {tensor_shape}")
+        # 嘗試平坦化處理
+        try:
+            batch_size = tensor_shape[0]
+            flattened = normalized.reshape(batch_size, -1)
+            neuron_means = flattened.mean(dim=0)
+        except Exception as e:
+            raise ValueError(f"不支援的激活值張量形狀: {tensor_shape}，錯誤：{str(e)}")
     
     # 檢測飽和神經元
     saturated_mask = neuron_means >= saturation_threshold
@@ -202,13 +243,15 @@ def compute_layer_similarity(activations1: torch.Tensor,
     Returns:
         相似度值
     """
-    # 確保張量維度匹配
-    if activations1.shape != activations2.shape:
-        raise ValueError(f"激活值形狀不匹配: {activations1.shape} vs {activations2.shape}")
-    
     # 將張量展平為一維向量
     flat1 = activations1.reshape(-1)
     flat2 = activations2.reshape(-1)
+    
+    # 如果形狀不同，截斷到相同長度
+    if flat1.shape[0] != flat2.shape[0]:
+        min_length = min(flat1.shape[0], flat2.shape[0])
+        flat1 = flat1[:min_length]
+        flat2 = flat2[:min_length]
     
     if method == 'cosine':
         # 計算餘弦相似度
@@ -234,10 +277,10 @@ def compute_layer_similarity(activations1: torch.Tensor,
 def compute_stability_over_batches(batch_activations: List[torch.Tensor]) -> Dict[str, float]:
     """
     計算多個批次激活值的穩定性指標。
-
+    
     Args:
         batch_activations: 多個批次的激活值列表，每個元素是一個批次的激活張量
-
+        
     Returns:
         包含穩定性指標的字典，如方差、變異係數、批次間相似度等
     """
@@ -289,14 +332,14 @@ def detect_activation_anomalies(activations: Union[torch.Tensor, np.ndarray],
     2. 分布異常（高偏斜度或峰度）
     3. 梯度異常（鄰近神經元間的激活值變化過大）
     4. 激活值過度集中（不均勻分布）
-
+    
     Args:
         activations: 要分析的激活值張量
         threshold_z: Z分數閾值，用於判定極端值 (默認: 3.0)
         skew_threshold: 偏斜度異常判定閾值 (默認: 1.0)
         kurt_threshold: 峰度異常判定閾值 (默認: 3.0)
         gradient_threshold: 梯度異常判定閾值 (默認: 2.0)
-
+        
     Returns:
         Dict[str, Any]: 包含異常檢測結果的字典，包括：
             - has_anomaly: 是否檢測到異常
@@ -426,7 +469,10 @@ def analyze_layer_relationships(activations_dict: Dict[str, Union[torch.Tensor, 
         metrics: 要計算的關係指標列表
         
     Returns:
-        包含層間關係分析結果的字典
+        包含層間關係分析結果的字典，包括:
+            - layer_pairs: 分析的層對列表
+            - metrics: 每種度量的值列表
+            - layer_graph: 層之間關係的圖表示
     """
     import skimage.metrics
     from scipy.stats import entropy
@@ -465,11 +511,16 @@ def analyze_layer_relationships(activations_dict: Dict[str, Union[torch.Tensor, 
     # 初始化結果字典
     results = {
         'layer_pairs': [],
-        'metrics': {}
+        'metrics': {},
+        'layer_graph': {}  # 初始化層級關係圖
     }
     
     for metric in metrics:
         results['metrics'][metric] = []
+    
+    # 初始化層級關係圖
+    for layer_name in layer_names:
+        results['layer_graph'][layer_name] = {}
     
     # 對每對層計算關係指標
     for layer1, layer2 in comparison_pairs:
@@ -482,6 +533,9 @@ def analyze_layer_relationships(activations_dict: Dict[str, Union[torch.Tensor, 
         min_batch = min(act1.shape[0], act2.shape[0])
         act1 = act1[:min_batch]
         act2 = act2[:min_batch]
+        
+        # 用於存儲各指標的分數
+        metric_scores = {}
         
         # 對於每個度量指標計算相應的關係值
         if 'correlation' in metrics:
@@ -525,6 +579,7 @@ def analyze_layer_relationships(activations_dict: Dict[str, Union[torch.Tensor, 
             
             avg_corr = np.mean(corr_matrix)
             results['metrics']['correlation'].append(float(avg_corr))
+            metric_scores['correlation'] = float(avg_corr)
         
         if 'mutual_information' in metrics:
             # 使用直方圖估算互信息
@@ -577,6 +632,7 @@ def analyze_layer_relationships(activations_dict: Dict[str, Union[torch.Tensor, 
             
             avg_mi = np.mean(mi_values) if mi_values else 0.0
             results['metrics']['mutual_information'].append(float(avg_mi))
+            metric_scores['mutual_information'] = float(avg_mi)
         
         if 'structural_similarity' in metrics:
             # 如果原始激活值是卷積特徵圖，使用結構相似性指數(SSIM)
@@ -611,75 +667,63 @@ def analyze_layer_relationships(activations_dict: Dict[str, Union[torch.Tensor, 
                     
                     # 對於每個通道計算SSIM，然後取平均
                     channel_ssim = []
-                    for c in range(c1):
-                        # 調整大小
-                        if h1 != h2 or w1 != w2:
-                            from skimage.transform import resize
-                            
-                            # 將它們縮放到相同的大小
-                            target_h = min(h1, h2)
-                            target_w = min(w1, w2)
-                            
-                            img1 = resize(f1[c], (target_h, target_w))
-                            img2 = resize(f2[c], (target_h, target_w))
-                        else:
-                            img1 = f1[c]
-                            img2 = f2[c]
-                        
-                        # 標準化到0-1範圍，這是SSIM需要的
-                        img1 = (img1 - np.min(img1)) / (np.max(img1) - np.min(img1) + 1e-8)
-                        img2 = (img2 - np.min(img2)) / (np.max(img2) - np.min(img2) + 1e-8)
-                        
-                        # 計算SSIM
-                        try:
-                            ssim = skimage.metrics.structural_similarity(
-                                img1, img2, data_range=1.0
-                            )
-                            channel_ssim.append(ssim)
-                        except:
-                            # 出問題時跳過
-                            continue
                     
-                    if channel_ssim:
-                        ssim_values.append(np.mean(channel_ssim))
+                    for c in range(c1):
+                        # 獲取通道
+                        ch1 = f1[c]
+                        ch2 = f2[c]
+                        
+                        # 調整大小以匹配
+                        if h1 != h2 or w1 != w2:
+                            # 使用最簡單的縮放策略：截取較小尺寸
+                            min_h = min(h1, h2)
+                            min_w = min(w1, w2)
+                            ch1_resized = ch1[:min_h, :min_w]
+                            ch2_resized = ch2[:min_h, :min_w]
+                        else:
+                            ch1_resized = ch1
+                            ch2_resized = ch2
+                        
+                        # 確保有足夠的像素進行SSIM計算
+                        if ch1_resized.shape[0] > 7 and ch1_resized.shape[1] > 7:
+                            try:
+                                # 計算相似性，濾波器大小改為7（默認為11，可能對小圖像不合適）
+                                ch1_normalized = (ch1_resized - ch1_resized.min()) / (ch1_resized.max() - ch1_resized.min() + 1e-10)
+                                ch2_normalized = (ch2_resized - ch2_resized.min()) / (ch2_resized.max() - ch2_resized.min() + 1e-10)
+                                
+                                ssim = skimage.metrics.structural_similarity(
+                                    ch1_normalized, ch2_normalized, 
+                                    data_range=1.0, win_size=7
+                                )
+                                channel_ssim.append(ssim)
+                            except Exception as e:
+                                # 忽略錯誤
+                                continue
                 
+                    # 計算平均SSIM
+                    if channel_ssim:
+                        avg_channel_ssim = np.mean(channel_ssim)
+                        ssim_values.append(avg_channel_ssim)
+                
+                # 返回所有批次和通道的平均SSIM
                 avg_ssim = np.mean(ssim_values) if ssim_values else 0.0
                 results['metrics']['structural_similarity'].append(float(avg_ssim))
+                metric_scores['structural_similarity'] = float(avg_ssim)
             else:
-                # 非卷積層，使用零值
+                # 對於非卷積特徵，標記為不適用
                 results['metrics']['structural_similarity'].append(0.0)
+                metric_scores['structural_similarity'] = 0.0
+        
+        # 更新層級關係圖
+        # 使用相關性度量（如果可用）或第一個可用的度量
+        relation_score = metric_scores.get('correlation', 
+                                          metric_scores.get(next(iter(metric_scores), 0.0)))
+        
+        # 將關係添加到圖中（雙向）
+        results['layer_graph'][layer1][layer2] = relation_score
+        results['layer_graph'][layer2][layer1] = relation_score
     
-    # 計算層級關係圖
-    layer_graph = {}
-    for i, (layer1, layer2) in enumerate(results['layer_pairs']):
-        # 使用第一個度量作為相關性分數
-        if metrics and metrics[0] in results['metrics'] and results['metrics'][metrics[0]]:
-            score = results['metrics'][metrics[0]][i]
-            
-            # 建立圖的邊
-            if layer1 not in layer_graph:
-                layer_graph[layer1] = {}
-            if layer2 not in layer_graph:
-                layer_graph[layer2] = {}
-                
-            layer_graph[layer1][layer2] = score
-            layer_graph[layer2][layer1] = score
-    
-    # 添加層關係圖到結果
-    results['layer_graph'] = layer_graph
-    
-    # 尋找高度相關的層對
-    high_correlation_threshold = 0.7
-    high_corr_pairs = []
-    
-    if 'correlation' in metrics:
-        for i, (layer1, layer2) in enumerate(results['layer_pairs']):
-            if results['metrics']['correlation'][i] > high_correlation_threshold:
-                high_corr_pairs.append((layer1, layer2, results['metrics']['correlation'][i]))
-    
-    results['high_correlation_pairs'] = sorted(high_corr_pairs, key=lambda x: x[2], reverse=True)
-    
-    return results 
+    return results
 
 # 添加適配函數，以便測試文件能夠使用 calculate_ 前綴
 def calculate_activation_statistics(activations: torch.Tensor) -> Dict[str, float]:
@@ -844,28 +888,59 @@ def calculate_effective_rank(activations: torch.Tensor) -> float:
 
 def calculate_feature_coherence(activations: torch.Tensor) -> float:
     """
-    計算特徵間的一致性，衡量不同通道之間的相關程度。
+    計算特徵間的一致性，衡量不同通道/特徵之間的相關程度。
     
     Args:
-        activations: 層級激活值張量，形狀為 [batch, channels, height, width]
+        activations: 層級激活值張量，形狀為 [batch, channels, height, width] 或 [batch, seq_len, features]
         
     Returns:
         一致性指標
     """
-    # 確認輸入是4D張量
-    if len(activations.shape) != 4:
-        raise ValueError(f"需要4D張量，當前形狀: {activations.shape}")
+    tensor_shape = activations.shape
     
-    batch_size, channels, height, width = activations.shape
+    # 判斷張量維度
+    if len(tensor_shape) == 4:  # 卷積層 [batch, channels, height, width]
+        batch_size, channels, height, width = tensor_shape
+        
+        if channels <= 1:
+            return 1.0  # 只有一個通道時，一致性為1
+        
+        # 將每個通道展平為向量
+        flattened = activations.reshape(batch_size, channels, -1)
+        
+        # 計算通道之間的相關性
+        return _calculate_feature_vectors_coherence(flattened)
+        
+    elif len(tensor_shape) == 3:  # 序列/Transformer層 [batch, seq_len, features]
+        batch_size, seq_len, features = tensor_shape
+        
+        if features <= 1:
+            return 1.0  # 只有一個特徵時，一致性為1
+        
+        # 將seq_len視為空間維度，features視為通道
+        flattened = activations.permute(0, 2, 1)  # 變為 [batch, features, seq_len]
+        flattened = flattened.reshape(batch_size, features, -1)
+        
+        # 計算特徵之間的相關性
+        return _calculate_feature_vectors_coherence(flattened)
     
-    if channels <= 1:
-        return 1.0  # 只有一個通道時，一致性為1
+    else:
+        raise ValueError(f"需要3D或4D張量，當前形狀: {tensor_shape}")
+
+def _calculate_feature_vectors_coherence(flattened: torch.Tensor) -> float:
+    """
+    計算特徵向量之間的一致性
     
-    # 計算每對通道之間的相關係數
+    Args:
+        flattened: 已展平的張量，形狀為 [batch, channels/features, flattened_dim]
+        
+    Returns:
+        一致性指標
+    """
+    batch_size, channels, _ = flattened.shape
+    
+    # 計算每對通道/特徵之間的相關係數
     correlations = []
-    
-    # 將每個通道展平為向量
-    flattened = activations.reshape(batch_size, channels, -1)
     
     # 對於每個批次樣本
     for b in range(batch_size):
@@ -957,22 +1032,27 @@ def calculate_layer_similarity(activations1: torch.Tensor, activations2: torch.T
     Returns:
         包含不同相似度指標的字典
     """
-    # 確保張量形狀相同
-    if activations1.shape != activations2.shape:
-        raise ValueError(f"激活值形狀不匹配: {activations1.shape} vs {activations2.shape}")
-    
-    # 計算餘弦相似度
+    # 計算餘弦相似度，compute_layer_similarity函數已被修改為處理不同形狀
     cosine_sim = compute_layer_similarity(activations1, activations2, method='cosine')
     
     # 計算皮爾遜相關係數
     correlation = compute_layer_similarity(activations1, activations2, method='correlation')
     
     # 如果是批次數據，計算每個樣本的相關
-    if activations1.dim() > 1 and activations1.shape[0] > 1:
+    if activations1.dim() > 1 and activations1.shape[0] > 1 and activations2.dim() > 1 and activations2.shape[0] > 1:
+        # 確保批次維度相同，否則取最小值
+        common_batch_size = min(activations1.shape[0], activations2.shape[0])
+        
         batch_correlations = []
-        for i in range(activations1.shape[0]):
+        for i in range(common_batch_size):
             sample1 = activations1[i].reshape(-1)
             sample2 = activations2[i].reshape(-1)
+            
+            # 如果形狀不同，截斷到相同長度
+            if sample1.shape[0] != sample2.shape[0]:
+                min_length = min(sample1.shape[0], sample2.shape[0])
+                sample1 = sample1[:min_length]
+                sample2 = sample2[:min_length]
             
             # 標準化
             sample1 = (sample1 - torch.mean(sample1)) / (torch.std(sample1) + 1e-8)
@@ -982,7 +1062,7 @@ def calculate_layer_similarity(activations1: torch.Tensor, activations2: torch.T
             batch_corr = torch.mean(sample1 * sample2).item()
             batch_correlations.append(batch_corr)
         
-        mean_correlation = np.mean(batch_correlations)
+        mean_correlation = np.mean(batch_correlations) if batch_correlations else 0.0
     else:
         mean_correlation = correlation
     

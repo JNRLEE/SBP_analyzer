@@ -151,9 +151,10 @@ class DistributionPlotter(BasePlotter):
         # 美化圖表
         plt.tight_layout()
         
-        # 保存圖表
-        if self.output_dir and filename:
-            self._save_fig(fig, filename)
+        # 保存圖表 - 修復：如果 filename 是 None，使用 title 作為文件名
+        if self.output_dir:
+            save_filename = filename if filename is not None else title
+            self._save_fig(fig, save_filename)
         
         # 顯示圖表
         if show:

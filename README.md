@@ -3,6 +3,9 @@
 SBP Analyzer 是一個用於 **Ad-hoc (離線) 分析** 已完成的深度學習模型訓練過程的 Python 套件。
 它專為分析 MicDysphagiaFramework 產生的實驗結果而設計，旨在幫助開發者深入理解模型行為、訓練動態和潛在問題。
 
+> **重要說明**：本專案採用扁平結構，所有模組（analyzer, utils, metrics 等）直接位於專案根目錄 `SBP_analyzer` 下。
+> 導入時請使用如 `from analyzer import ...` 或 `import utils.file_utils` 的形式，而非 `from sbp_analyzer.xxx import ...`。
+
 ## 專案結構
 
 ```
@@ -12,7 +15,9 @@ SBP_analyzer/
 │   ├── base_analyzer.py
 │   ├── model_structure_analyzer.py    # 增強：現支持複雜度和效率分析
 │   ├── training_dynamics_analyzer.py
-│   └── intermediate_data_analyzer.py
+│   ├── intermediate_data_analyzer.py  # 包含層級活動分析和層間關係分析
+│   ├── adaptive_threshold_analyzer.py # 適應性閾值分析
+│   └── inference_analyzer.py          # 推理性能分析
 ├── data_loader/                 # 數據載入與解析
 │   ├── __init__.py
 │   ├── base_loader.py
@@ -22,7 +27,7 @@ SBP_analyzer/
 │   ├── __init__.py
 │   ├── distribution_metrics.py
 │   ├── performance_metrics.py
-│   └── layer_activity_metrics.py  # 新增：層級活動指標計算
+│   └── layer_activity_metrics.py  # 層級活動指標計算
 ├── visualization/               # 視覺化功能 (所有模組已完成實現)
 │   ├── __init__.py
 │   ├── plotter.py               # 所有繪圖功能的基類
@@ -39,12 +44,12 @@ SBP_analyzer/
 │   └── stat_utils.py
 ├── interfaces/                  # 用戶接口
 │   ├── __init__.py
-│   └── analyzer_interface.py
+│   └── analyzer_interface.py    # 統一分析器接口
 ├── examples/                    # 使用範例
 │   └── model_analysis_example.py
 └── tests/                       # 測試模組
     ├── test_data/
-    ├── test_layer_activity_metrics.py  # 新增：層級活動指標測試
+    ├── test_layer_activity_metrics.py
     ├── test_distribution_plots.py
     ├── test_performance_plots.py
     ├── test_model_structure_analyzer.py
@@ -97,7 +102,7 @@ pip install -e .
 ### 基本使用方式
 
 ```python
-from sbp_analyzer.interfaces.analyzer_interface import SBPAnalyzer
+from interfaces.analyzer_interface import SBPAnalyzer
 
 # 指向 MicDysphagiaFramework 產生的實驗結果目錄
 analyzer = SBPAnalyzer(experiment_dir='results/audio_swin_regression_20250417_142912')
@@ -204,15 +209,21 @@ perf_plotter.plot_loss_curve(loss_history, title='Training Loss')
   - 異常激活模式檢測
   - 層與層之間的關係分析
 - ✅ 相關測試文件 (tests/test_layer_activity_metrics.py)
+- ✅ 張量數據的預處理和正規化功能
+- ✅ 報告生成器實現，支持多種格式 (HTML、Markdown、PDF)
+- ✅ 報告模板系統，支持定制化報告內容
 
 最近修復:
 - ✅ 修正 visualization/__init__.py 中的模塊名稱錯誤
 - ✅ 更新主 __init__.py 中的導入，修正資料載入器名稱
 - ✅ 修復 calculate_effective_rank 函數處理特殊形狀張量的問題
+- ✅ 修復 distribution_metrics.py 中的 compare_tensor_distributions 函數，將 view 操作替換為更穩定的 reshape 操作
+- ✅ 修正 tests/test_distribution_metrics.py 中的測試，確保正確處理維度比較
+- ✅ 修復 ReportGenerator 中的 to_dict() 相關問題，增強處理不同數據結構的能力
 
 正在進行中:
 - 🔄 中間層數據加載與處理 (HookDataLoader 實現)
-- 🔄 報告生成器實現
+- 🔄 整合測試完善 (解決導入相關技術問題)
 
 ## 貢獻
 
@@ -221,3 +232,24 @@ perf_plotter.plot_loss_curve(loss_history, title='Training Loss')
 ## 更多資訊
 
 詳細的開發路線圖和設計請參見 `Instructor.md`。
+
+## 函數與類別索引表
+
+為了方便開發者快速查找和瀏覽專案中的函數和類別，我們提供了一個完整的索引表：
+
+- [完整函數與類別索引表](FUNCTION_CLASS_INDEX.md)
+
+您可以使用這個索引表來：
+- 快速找到特定功能的實現位置
+- 了解專案中可用的類別和函數及其關係
+- 在開發新功能時參考現有的設計模式
+
+索引表可以通過執行專案根目錄中的 `function_class_index_generator.py` 腳本更新：
+
+```python
+python function_class_index_generator.py
+```
+
+每個主要模塊的 `__init__.py` 文件還包含該模塊的簡要索引，可以通過 `update_module_index.py` 腳本更新。
+
+關於如何維護索引和文檔標準的詳細信息，請參閱 [貢獻指南](CONTRIBUTION_GUIDE.md)。

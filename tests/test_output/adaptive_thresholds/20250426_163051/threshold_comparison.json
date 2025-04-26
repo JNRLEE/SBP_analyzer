@@ -1,0 +1,90 @@
+{
+  "very_strict": {
+    "thresholds": {
+      "dead": 0.001,
+      "saturated": 0.999
+    },
+    "dead_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    },
+    "saturated_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    }
+  },
+  "strict": {
+    "thresholds": {
+      "dead": 0.01,
+      "saturated": 0.99
+    },
+    "dead_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    },
+    "saturated_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    }
+  },
+  "moderate": {
+    "thresholds": {
+      "dead": 0.05,
+      "saturated": 0.95
+    },
+    "dead_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    },
+    "saturated_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    }
+  },
+  "relaxed": {
+    "thresholds": {
+      "dead": 0.1,
+      "saturated": 0.9
+    },
+    "dead_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    },
+    "saturated_neurons": {
+      "layer1": 0.0,
+      "layer2": 0.0,
+      "layer3": 0.0,
+      "layer4": 0.0,
+      "layer5": 0.0,
+      "layer6": 0.0
+    }
+  }
+}

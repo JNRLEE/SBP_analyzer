@@ -1,0 +1,53 @@
+{
+    "convergence_analysis": {
+        "train_loss": {
+            "converged": false,
+            "convergence_point": null,
+            "note": "Convergence analysis failed or returned None"
+        },
+        "val_acc": {
+            "converged": false,
+            "convergence_point": null,
+            "note": "Convergence analysis failed or returned None"
+        }
+    },
+    "stability_analysis": {
+        "train_loss": {
+            "overall_std": 0.04999999999999999,
+            "last_window_std": 0.04999999999999999,
+            "relative_std": 0.11111111111111108,
+            "coefficient_of_variation": 0.11111111111111108,
+            "last_window_mean": 0.45
+        },
+        "val_acc": {
+            "overall_std": 0.024999999999999967,
+            "last_window_std": 0.024999999999999967,
+            "relative_std": 0.030303030303030266,
+            "coefficient_of_variation": 0.030303030303030266,
+            "last_window_mean": 0.825
+        }
+    },
+    "overfitting_analysis": {
+        "status": "N/A",
+        "reason": "Missing loss or val_loss metrics"
+    },
+    "anomaly_detection": {
+        "convergence_issues": {
+            "issue": "no_convergence",
+            "description": "\u6a21\u578b\u6c92\u6709\u6536\u6582"
+        }
+    },
+    "metric_correlations": {
+        "train_loss": {
+            "train_loss": 1.0,
+            "val_acc": -1.000000000000001
+        },
+        "val_acc": {
+            "train_loss": -1.000000000000001,
+            "val_acc": 1.0
+        }
+    },
+    "learning_efficiency": {
+        "error": "Missing required metrics"
+    }
+}

@@ -1,5 +1,19 @@
-# 基本依賴，根據實際使用的庫添加 (例如 torch, tensorflow)
-numpy
-tensorboard
-# matplotlib # 如果 visualization/plotter.py 需要
-# scipy     # 如果 metrics/distribution.py 需要
+# 基本依賴 - 全部更新為專案所需的庫
+numpy>=1.20.0  # 數學運算和數組操作
+matplotlib>=3.5.0  # 視覺化及繪圖功能
+scipy>=1.7.0  # 科學計算和統計分析
+pandas>=1.3.0  # 數據結構和分析
+seaborn>=0.11.0  # 高級視覺化
+networkx>=2.6.0  # 網絡和圖形分析
+torch>=1.10.0  # 深度學習框架
+tensorflow>=2.6.0  # 可選的深度學習框架
+pytest>=6.2.0  # 單元測試
+tensorboard>=2.6.0  # 訓練視覺化工具
+scikit-learn>=1.0.0  # 機器學習工具和評估指標
+statsmodels>=0.13.0  # 高級統計分析
+tqdm>=4.62.0  # 進度條顯示
+
+# 報告生成相關依賴
+weasyprint>=54.0  # HTML轉PDF (優先選擇)
+pdfkit>=1.0.0  # HTML轉PDF的替代選擇 (需要wkhtmltopdf)
+jinja2>=3.0.0  # 模板引擎

@@ -37,85 +37,89 @@ def analyze_loss_curve(loss_values: List[float], val_loss_values: Optional[List[
     Returns:
         Dict[str, Any]: 包含損失曲線分析結果的字典，包括收斂點、穩定性等信息。
     """
-    results = {
-        'train_loss': {
-            'min_value': min(loss_values),
-            'min_epoch': loss_values.index(min(loss_values)),
-            'final_value': loss_values[-1],
-            'overall_decrease': loss_values[0] - loss_values[-1],
-            'overall_decrease_percentage': (1 - loss_values[-1]/loss_values[0]) * 100 if loss_values[0] != 0 else 0,
-        }
+    # Convert to numpy array for easier handling
+    loss_values = np.array(loss_values)
+    if val_loss_values is not None:
+        val_loss_values = np.array(val_loss_values)
+        
+    # Handle empty input
+    if len(loss_values) == 0:
+        return {'train_loss': {'error': 'Empty loss values'}} 
+
+    # Basic train loss stats (handle single point)
+    train_stats = {
+        'min_value': np.min(loss_values),
+        'min_epoch': int(np.argmin(loss_values)), 
+        'final_value': loss_values[-1],
+        'overall_decrease': loss_values[0] - loss_values[-1] if len(loss_values) > 1 else 0,
+        'overall_decrease_percentage': ((loss_values[0] - loss_values[-1]) / abs(loss_values[0])) * 100 if len(loss_values) > 1 and loss_values[0] != 0 else 0,
     }
     
-    # 計算移動平均
-    train_ma = _calculate_moving_average(loss_values, window_size)
-    
-    # 收斂點分析
-    convergence_point = _find_convergence_point(loss_values, window_size, convergence_threshold, patience)
-    results['train_loss']['convergence_epoch'] = convergence_point
-    results['train_loss']['convergence_value'] = loss_values[convergence_point] if convergence_point is not None else None
-    
-    # 收斂速度分析
-    if convergence_point is not None:
-        results['train_loss']['convergence_rate'] = loss_values[0] / (convergence_point + 1) if convergence_point > 0 else loss_values[0]
+    results = {'train_loss': train_stats}
+
+    # Calculate stability and convergence only if enough data points
+    if len(loss_values) >= 2:
+        try:
+            stability = calculate_stability_metrics(loss_values, window_size=window_size)
+            train_stats['stability'] = stability
+        except Exception as e:
+            train_stats['stability'] = {'error': str(e)}
+        
+        try:    
+            convergence = find_convergence_point(loss_values, window=window_size, threshold=convergence_threshold, patience=patience)
+            train_stats.update(convergence) # Add convergence keys directly
+        except Exception as e:
+            train_stats['convergence_error'] = str(e)
     else:
-        results['train_loss']['convergence_rate'] = None
-        
-    # 穩定性分析
-    if len(loss_values) > window_size * 2:
-        # 後半段的穩定性
-        second_half = loss_values[len(loss_values)//2:]
-        results['train_loss']['stability'] = {
-            'variance': np.var(second_half),
-            'std': np.std(second_half),
-            'max_fluctuation': max(second_half) - min(second_half)
-        }
-    
-    # 如果有驗證損失，也進行相應分析
-    if val_loss_values:
-        results['val_loss'] = {
-            'min_value': min(val_loss_values),
-            'min_epoch': val_loss_values.index(min(val_loss_values)),
+        # Not enough data for stability/convergence
+        train_stats['stability'] = {'error': 'Insufficient data'}
+        train_stats['converged'] = None
+        train_stats['convergence_point'] = None
+
+    # Calculate stats for validation loss if available
+    if val_loss_values is not None and len(val_loss_values) > 0:
+        val_stats = {
+            'min_value': np.min(val_loss_values),
+            'min_epoch': int(np.argmin(val_loss_values)),
             'final_value': val_loss_values[-1],
-            'overall_decrease': val_loss_values[0] - val_loss_values[-1],
-            'overall_decrease_percentage': (1 - val_loss_values[-1]/val_loss_values[0]) * 100 if val_loss_values[0] != 0 else 0,
         }
+        results['val_loss'] = val_stats
         
-        # 收斂點分析
-        val_convergence_point = _find_convergence_point(val_loss_values, window_size, convergence_threshold, patience)
-        results['val_loss']['convergence_epoch'] = val_convergence_point
-        results['val_loss']['convergence_value'] = val_loss_values[val_convergence_point] if val_convergence_point is not None else None
-        
-        if val_convergence_point is not None:
-            results['val_loss']['convergence_rate'] = val_loss_values[0] / (val_convergence_point + 1) if val_convergence_point > 0 else val_loss_values[0]
+        if len(val_loss_values) >= 2:
+            try:
+                val_stability = calculate_stability_metrics(val_loss_values, window_size=window_size)
+                val_stats['stability'] = val_stability
+            except Exception as e:
+                 val_stats['stability'] = {'error': str(e)}
+            
+            try:
+                val_convergence = find_convergence_point(val_loss_values, window=window_size, threshold=convergence_threshold, patience=patience)
+                val_stats.update(val_convergence)
+            except Exception as e:
+                val_stats['convergence_error'] = str(e)
+                
+            # Check overfitting only if both train and val have enough data
+            if len(loss_values) >= 2:
+                try:
+                     overfitting = detect_overfitting_simple(loss_values, val_loss_values, patience=patience)
+                     results['overfitting_detection'] = overfitting
+                except Exception as e:
+                     results['overfitting_detection'] = {'status': 'Error', 'reason': str(e)}
         else:
-            results['val_loss']['convergence_rate'] = None
-        
-        # 穩定性分析
-        if len(val_loss_values) > window_size * 2:
-            second_half = val_loss_values[len(val_loss_values)//2:]
-            results['val_loss']['stability'] = {
-                'variance': np.var(second_half),
-                'std': np.std(second_half),
-                'max_fluctuation': max(second_half) - min(second_half)
-            }
-        
-        # 訓練/驗證差異分析
-        results['train_val_difference'] = {
-            'final_gap': abs(loss_values[-1] - val_loss_values[-1]),
-            'min_gap': min([abs(t - v) for t, v in zip(loss_values, val_loss_values)]),
-            'max_gap': max([abs(t - v) for t, v in zip(loss_values, val_loss_values)]),
-            'avg_gap': np.mean([abs(t - v) for t, v in zip(loss_values, val_loss_values)])
-        }
-        
-        # 檢測過擬合
-        results['overfitting_detection'] = detect_overfitting(loss_values, val_loss_values)
-    
+            val_stats['stability'] = {'error': 'Insufficient data'}
+            val_stats['converged'] = None
+            val_stats['convergence_point'] = None
+
+        # Calculate train/val difference if possible
+        if len(loss_values) == len(val_loss_values):
+            diff = np.mean(val_loss_values - loss_values)
+            results['train_val_difference'] = {'mean_difference': diff}
+            
     return results
 
 
 def analyze_metric_curve(metric_values: List[float], val_metric_values: Optional[List[float]] = None,
-                        is_higher_better: bool = True, window_size: int = 5,
+                        is_higher_better: bool = False, window_size: int = 5,
                         convergence_threshold: float = 0.01, patience: int = 5) -> Dict[str, Any]:
     """
     分析評估指標曲線的特性。
@@ -131,40 +135,62 @@ def analyze_metric_curve(metric_values: List[float], val_metric_values: Optional
     Returns:
         Dict[str, Any]: 包含指標曲線分析結果的字典。
     """
-    # 如果是指標值越高越好，需要取反來找收斂點
+    metric_values = np.array(metric_values)
+    if val_metric_values is not None:
+        val_metric_values = np.array(val_metric_values)
+        
+    if len(metric_values) == 0:
+        return {'train_metric': {'error': 'Empty metric values'}} 
+
+    # If higher is better, analyze the negative of the metric
     if is_higher_better:
-        neg_metric_values = [-v for v in metric_values]
-        neg_val_metric_values = [-v for v in val_metric_values] if val_metric_values else None
+        neg_metric_values = -metric_values
+        neg_val_metric_values = -val_metric_values if val_metric_values is not None else None
+        results = analyze_loss_curve(neg_metric_values, neg_val_metric_values, window_size,
+                                   convergence_threshold, patience)
     else:
-        neg_metric_values = metric_values
-        neg_val_metric_values = val_metric_values
-    
-    # 使用與損失曲線分析相同的邏輯
-    results = analyze_loss_curve(neg_metric_values, neg_val_metric_values, window_size, 
-                               convergence_threshold, patience)
-    
-    # 修正結果字典中的鍵名
+        results = analyze_loss_curve(metric_values, val_metric_values, window_size,
+                                   convergence_threshold, patience)
+
+    # Rename and adjust results for higher-is-better metrics
     if 'train_loss' in results:
-        results['train_metric'] = results.pop('train_loss')
-        # 調整最小值為最大值（如果指標是越高越好）
+        train_res = results.pop('train_loss')
+        train_res_adjusted = {
+            'final_value': metric_values[-1] if len(metric_values) > 0 else np.nan,
+            'convergence_epoch': train_res.get('convergence_epoch'),
+            'stability': train_res.get('stability')
+            # Note: convergence_value and rate might be misleading after inversion
+        }
         if is_higher_better:
-            results['train_metric']['max_value'] = -results['train_metric'].pop('min_value')
-            results['train_metric']['max_epoch'] = results['train_metric'].pop('min_epoch')
-            if 'convergence_value' in results['train_metric'] and results['train_metric']['convergence_value'] is not None:
-                results['train_metric']['convergence_value'] = -results['train_metric']['convergence_value']
-    
-    if 'val_loss' in results:
-        results['val_metric'] = results.pop('val_loss')
-        # 調整最小值為最大值（如果指標是越高越好）
+            train_res_adjusted['max_value'] = np.max(metric_values) if len(metric_values) > 0 else np.nan
+            train_res_adjusted['max_epoch'] = int(np.argmax(metric_values)) if len(metric_values) > 0 else None
+        else:
+            train_res_adjusted['min_value'] = np.min(metric_values) if len(metric_values) > 0 else np.nan
+            train_res_adjusted['min_epoch'] = int(np.argmin(metric_values)) if len(metric_values) > 0 else None
+        results['train_metric'] = train_res_adjusted
+
+    if 'val_loss' in results and val_metric_values is not None:
+        val_res = results.pop('val_loss')
+        val_res_adjusted = {
+             'final_value': val_metric_values[-1] if len(val_metric_values) > 0 else np.nan,
+             'convergence_epoch': val_res.get('convergence_epoch'),
+             'stability': val_res.get('stability')
+        }
         if is_higher_better:
-            results['val_metric']['max_value'] = -results['val_metric'].pop('min_value')
-            results['val_metric']['max_epoch'] = results['val_metric'].pop('min_epoch')
-            if 'convergence_value' in results['val_metric'] and results['val_metric']['convergence_value'] is not None:
-                results['val_metric']['convergence_value'] = -results['val_metric']['convergence_value']
-    
-    # 添加指標特定的分析
-    results['improvement_rate'] = _calculate_improvement_rate(metric_values, is_higher_better)
-    
+             val_res_adjusted['max_value'] = np.max(val_metric_values) if len(val_metric_values) > 0 else np.nan
+             val_res_adjusted['max_epoch'] = int(np.argmax(val_metric_values)) if len(val_metric_values) > 0 else None
+        else:
+             val_res_adjusted['min_value'] = np.min(val_metric_values) if len(val_metric_values) > 0 else np.nan
+             val_res_adjusted['min_epoch'] = int(np.argmin(val_metric_values)) if len(val_metric_values) > 0 else None
+        results['val_metric'] = val_res_adjusted
+            
+    # Calculate improvement rate based on original positive values
+    try:
+        improvement = _calculate_improvement_rate(metric_values, is_higher_better)
+        results['improvement_rate'] = improvement
+    except Exception as e:
+        results['improvement_rate'] = {'error': str(e)}
+        
     return results
 
 

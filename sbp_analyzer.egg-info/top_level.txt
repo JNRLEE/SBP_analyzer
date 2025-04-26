@@ -1,7 +1,8 @@
-callbacks
-inspection
+analyzer
+data_loader
+interfaces
 metrics
-model_hooks
+reporter
 tests
 utils
 visualization

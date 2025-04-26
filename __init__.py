@@ -8,6 +8,10 @@ SBP Analyzer Package
 # 版本信息
 __version__ = '0.1.0'
 
+# 設置包導入路徑，確保測試環境也能正確導入
+import os
+import sys
+
 # 從analyzer模塊導出分析器
 from .analyzer.base_analyzer import BaseAnalyzer
 from .analyzer.model_structure_analyzer import ModelStructureAnalyzer
@@ -26,6 +30,17 @@ from .data_loader.experiment_loader import ExperimentLoader
 
 # 從reporter模塊導出報告生成工具
 from .reporter.report_generator import ReportGenerator
+
+# 從interfaces模塊導出用戶介面
+from .interfaces.analyzer_interface import SBPAnalyzer, AnalysisResults
+
+# 從metrics模塊導出主要的度量標準
+from .metrics.layer_activity_metrics import (
+    calculate_activation_statistics,
+    calculate_activation_sparsity,
+    detect_dead_neurons,
+    calculate_layer_similarity
+)
 
 # 導出公開的API
 __all__ = [
@@ -47,4 +62,14 @@ __all__ = [
     
     # 報告生成工具
     'ReportGenerator',
+    
+    # 用戶介面
+    'SBPAnalyzer',
+    'AnalysisResults',
+    
+    # 主要度量標準
+    'calculate_activation_statistics',
+    'calculate_activation_sparsity',
+    'detect_dead_neurons',
+    'calculate_layer_similarity'
 ]

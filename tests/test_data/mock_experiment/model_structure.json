@@ -1,0 +1,51 @@
+{
+    "model_name": "TestModel",
+    "total_params": 1234567,
+    "trainable_params": 1200000,
+    "non_trainable_params": 34567,
+    "layer_count": 10,
+    "input_shape": [
+        3,
+        224,
+        224
+    ],
+    "layer_types": {
+        "Conv2D": 4,
+        "BatchNorm2D": 4,
+        "ReLU": 4,
+        "Linear": 2,
+        "Dropout": 1
+    },
+    "layers": [
+        {
+            "name": "layer1",
+            "type": "Conv2D",
+            "params": 1000,
+            "output_shape": [
+                32,
+                112,
+                112
+            ]
+        },
+        {
+            "name": "layer2",
+            "type": "ReLU",
+            "params": 0,
+            "output_shape": [
+                32,
+                112,
+                112
+            ]
+        },
+        {
+            "name": "layer3",
+            "type": "Conv2D",
+            "params": 10000,
+            "output_shape": [
+                64,
+                56,
+                56
+            ]
+        }
+    ]
+}
