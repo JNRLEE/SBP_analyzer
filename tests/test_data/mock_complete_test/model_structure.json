@@ -1,0 +1,91 @@
+{
+  "model_name": "AudioSwinTransformer",
+  "model_type": "regression",
+  "total_parameters": 28123456,
+  "trainable_parameters": 28100000,
+  "non_trainable_parameters": 23456,
+  "input_shape": [
+    3,
+    224,
+    224
+  ],
+  "output_shape": [
+    1
+  ],
+  "layer_types": {
+    "PatchEmbed": 1,
+    "SwinTransformerBlock": 12,
+    "PatchMerging": 3,
+    "LayerNorm": 13,
+    "Linear": 5
+  },
+  "layers": [
+    {
+      "name": "patch_embed",
+      "type": "PatchEmbed",
+      "parameters": 4608,
+      "shape": [
+        3,
+        224,
+        224
+      ]
+    },
+    {
+      "name": "layers.0.blocks.0",
+      "type": "SwinTransformerBlock",
+      "parameters": 55488,
+      "shape": [
+        32,
+        3136,
+        96
+      ]
+    },
+    {
+      "name": "layers.1.blocks.0",
+      "type": "SwinTransformerBlock",
+      "parameters": 221952,
+      "shape": [
+        32,
+        784,
+        192
+      ]
+    },
+    {
+      "name": "layers.2.blocks.0",
+      "type": "SwinTransformerBlock",
+      "parameters": 887808,
+      "shape": [
+        32,
+        196,
+        384
+      ]
+    },
+    {
+      "name": "layers.3.blocks.0",
+      "type": "SwinTransformerBlock",
+      "parameters": 3551232,
+      "shape": [
+        32,
+        49,
+        768
+      ]
+    },
+    {
+      "name": "norm",
+      "type": "LayerNorm",
+      "parameters": 1536,
+      "shape": [
+        768
+      ]
+    },
+    {
+      "name": "head",
+      "type": "Linear",
+      "parameters": 769,
+      "shape": [
+        768,
+        1
+      ]
+    }
+  ]
+}

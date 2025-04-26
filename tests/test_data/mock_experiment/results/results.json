@@ -1,0 +1,7 @@
+{
+    "test_loss": 0.6,
+    "test_accuracy": 0.85,
+    "training_time": 3600,
+    "best_model_path": "models/best_model.pth",
+    "final_model_path": "models/final_model.pth"
+}

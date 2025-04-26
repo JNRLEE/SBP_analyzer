@@ -11,8 +11,24 @@ Classes:
 import os
 import json
 import logging
+import numpy as np
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Union
+
+class NumpyEncoder(json.JSONEncoder):
+    """專門處理NumPy類型的JSON編碼器"""
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        elif isinstance(obj, np.complex):
+            return str(obj)
+        return super(NumpyEncoder, self).default(obj)
 
 class BaseAnalyzer(ABC):
     """
@@ -41,10 +57,9 @@ class BaseAnalyzer(ABC):
         # 設置日誌
         self.logger = logging.getLogger(self.__class__.__name__)
         
-        # 確認實驗目錄是否存在
+        # 記錄目錄不存在的警告，但不拋出異常
         if not os.path.exists(experiment_dir):
-            self.logger.error(f"實驗目錄不存在: {experiment_dir}")
-            raise FileNotFoundError(f"實驗目錄不存在: {experiment_dir}")
+            self.logger.warning(f"實驗目錄不存在: {experiment_dir}")
     
     def load_config(self) -> Dict:
         """
@@ -87,7 +102,7 @@ class BaseAnalyzer(ABC):
         output_path = os.path.join(output_dir, f"{self.__class__.__name__}_results.json")
         try:
             with open(output_path, 'w') as f:
-                json.dump(self.results, f, indent=4)
+                json.dump(self.results, f, indent=4, cls=NumpyEncoder)
             self.logger.info(f"分析結果已保存到: {output_path}")
         except Exception as e:
             self.logger.error(f"保存結果失敗: {e}")

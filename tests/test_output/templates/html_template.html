@@ -1,0 +1,23 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{{experiment_name}} - 自定義分析報告</title>
+        <style>
+            body { font-family: Helvetica, sans-serif; background-color: #eef; }
+            .header { background-color: #44a; color: white; padding: 20px; }
+            .section { margin: 20px; padding: 15px; background-color: white; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>{{experiment_name}} - 深度學習模型分析</h1>
+            <p>分析時間: {{analysis_time}}</p>
+        </div>
+        {{model_structure_section}}
+        {{training_dynamics_section}}
+        {{intermediate_data_section}}
+    </body>
+    </html>
+    

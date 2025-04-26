@@ -3,10 +3,6 @@ description:
 globs: 
 alwaysApply: true
 ---
-
-# Your rule content
-
-
 ## Documentation Standards
 1. All modules and functions must use standardized docstring format including:
    - Args
@@ -43,42 +39,30 @@ alwaysApply: true
    - Always create Pull Requests to branches first
 
 ## Project Structure
-The project structure should be maintained according to:
-SBP_analyzer/
-├── analyzer/                    # 核心分析邏輯
-│   ├── __init__.py
-│   ├── base_analyzer.py
-│   ├── model_structure_analyzer.py
-│   ├── training_dynamics_analyzer.py
-│   └── intermediate_data_analyzer.py
-├── data_loader/                 # 數據載入與解析
-│   ├── __init__.py
-│   ├── base_loader.py
-│   ├── experiment_loader.py
-│   └── hook_data_loader.py
-├── metrics/                     # 分析指標計算
-│   ├── __init__.py
-│   ├── distribution_metrics.py
-│   └── performance_metrics.py
-│   └── layer_activity_metrics.py
-├── visualization/               # 視覺化功能
-│   ├── __init__.py
-│   ├── distribution_plots.py
-│   ├── performance_plots.py
-│   ├── model_structure_plots.py
-│   └── layer_activity_plots.py
-├── reporter/                    # 報告生成
-│   ├── __init__.py
-│   └── report_generator.py
-├── utils/                       # 通用工具
-│   ├── __init__.py
-│   ├── file_utils.py
-│   └── tensor_utils.py
-│   └── stat_utils.py
-├── interfaces/                  # 用戶接口
-│   ├── __init__.py
-│   └── analyzer_interface.py
-└── tests/                       # 測試模組
-    ├── test_data/
-    └── ...
+The project structure should be maintained according to:/Users/jnrle/Library/CloudStorage/GoogleDrive-jenner.lee.com@gmail.com/My Drive/MicforDysphagia/ProjectDeveloper/SBP_analyzer/README.md
 
+## Import Conventions
+1. Project uses a flat structure:
+   - All modules (analyzer, utils, metrics, etc.) are located directly under project root directory `SBP_analyzer`.
+   - ALWAYS use these import patterns:
+     - `from analyzer import ...` NOT `from sbp_analyzer.analyzer import ...`
+     - `import utils.file_utils` NOT `import sbp_analyzer.utils.file_utils`
+   - Run pytest from the project root directory to ensure import paths work correctly.
+2. All directories intended as Python packages must include an `__init__.py` file.
+3. Avoid creating nested `sbp_analyzer` directory inside project root.
+
+## Function and Class Index Standards
+1. All code changes must maintain up-to-date function and class indices:
+   - Update the main project index (`FUNCTION_CLASS_INDEX.md`) using `function_class_index_generator.py`
+   - Update module-level indices in `__init__.py` files using `update_module_index.py`
+   - Follow index maintenance instructions in `CONTRIBUTION_GUIDE.md`
+
+2. When adding or modifying classes and functions:
+   - Ensure proper docstrings that follow the standardized format
+   - Run index generators after making significant changes
+   - Include brief descriptions that will appear in the indices
+
+3. Module `__init__.py` files must:
+   - Contain an up-to-date index of all classes and functions in the module
+   - Include proper import statements and `__all__` definitions
+   - Include a reference to the main index file

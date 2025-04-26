@@ -1,0 +1,249 @@
+
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>分析報告 - mock_test</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    margin: 0;
+                    padding: 20px;
+                    color: #333;
+                }
+                h1, h2, h3 {
+                    color: #444;
+                }
+                .container {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                }
+                .section {
+                    margin-bottom: 30px;
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                    border-radius: 5px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    padding: 12px 15px;
+                    text-align: left;
+                    border-bottom: 1px solid #ddd;
+                }
+                th {
+                    background-color: #f2f2f2;
+                }
+                .plot-container {
+                    margin: 20px 0;
+                    text-align: center;
+                }
+                pre {
+                    background-color: #f5f5f5;
+                    padding: 15px;
+                    overflow: auto;
+                    border-radius: 5px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>深度學習模型分析報告</h1>
+                <div class="section">
+                    <h2>實驗信息</h2>
+                    <table>
+                        <tr>
+                            <th>實驗名稱</th>
+                            <td>mock_test</td>
+                        </tr>
+                        <tr>
+                            <th>分析時間</th>
+                            <td>2025-04-26 16:29:41</td>
+                        </tr>
+                    </table>
+                </div>
+                
+        <div class="section">
+            <h2>模型結構分析</h2>
+            <table>
+                <tr>
+                    <th>模型名稱</th>
+                    <td>TestModel</td>
+                </tr>
+                <tr>
+                    <th>總參數量</th>
+                    <td>0</td>
+                </tr>
+                <tr>
+                    <th>可訓練參數量</th>
+                    <td>0</td>
+                </tr>
+                <tr>
+                    <th>非可訓練參數量</th>
+                    <td>0</td>
+                </tr>
+                <tr>
+                    <th>層數量</th>
+                    <td>0</td>
+                </tr>
+            </table>
+        
+            <h3>層類型分佈</h3>
+            <table>
+                <tr>
+                    <th>層類型</th>
+                    <th>數量</th>
+                </tr>
+            
+                <tr>
+                    <td>Linear</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>Conv2d</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>BatchNorm2d</td>
+                    <td>1</td>
+                </tr>
+                
+            </table>
+            
+        </div>
+        
+                
+        <div class="section">
+            <h2>訓練動態分析</h2>
+        
+            <h3>收斂性分析</h3>
+            <table>
+                <tr>
+                    <th>指標</th>
+                    <th>收斂輪次</th>
+                    <th>收斂速度</th>
+                    <th>最終值</th>
+                </tr>
+            
+                    <tr>
+                        <td>loss</td>
+                        <td>7</td>
+                        <td>0.1</td>
+                        <td>0.48</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>accuracy</td>
+                        <td>6</td>
+                        <td>0.05</td>
+                        <td>0.9</td>
+                    </tr>
+                    
+            </table>
+            
+            <h3>穩定性分析</h3>
+            <table>
+                <tr>
+                    <th>指標</th>
+                    <th>方差</th>
+                    <th>最大波動</th>
+                </tr>
+            
+                    <tr>
+                        <td>loss</td>
+                        <td>0.25</td>
+                        <td>0.2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>accuracy</td>
+                        <td>0.01</td>
+                        <td>0.05</td>
+                    </tr>
+                    
+            </table>
+            
+        </div>
+        
+                
+        <div class="section">
+            <h2>中間層數據分析</h2>
+        
+                <div class="sub-section">
+                    <h3>層: layer1</h3>
+                    <p>分析輪次: 0, 1</p>
+                
+                    <h4>基本統計量</h4>
+                    <table>
+                        <tr>
+                            <th>輪次</th>
+                            <th>均值</th>
+                            <th>標準差</th>
+                            <th>最小值</th>
+                            <th>最大值</th>
+                            <th>中位數</th>
+                        </tr>
+                    
+                                    <tr>
+                                        <td>0</td>
+                                        <td>-0.003259453224018216</td>
+                                        <td>1.0032660961151123</td>
+                                        <td>-4.590487003326416</td>
+                                        <td>4.390617847442627</td>
+                                        <td>-0.008560119196772575</td>
+                                    </tr>
+                                    
+                                    <tr>
+                                        <td>1</td>
+                                        <td>0.1</td>
+                                        <td>0.8</td>
+                                        <td>-2.1</td>
+                                        <td>2.3</td>
+                                        <td>0.05</td>
+                                    </tr>
+                                    
+                    </table>
+                    
+                </div>
+                
+                <div class="sub-section">
+                    <h3>層: layer2</h3>
+                    <p>分析輪次: 0</p>
+                
+                    <h4>基本統計量</h4>
+                    <table>
+                        <tr>
+                            <th>輪次</th>
+                            <th>均值</th>
+                            <th>標準差</th>
+                            <th>最小值</th>
+                            <th>最大值</th>
+                            <th>中位數</th>
+                        </tr>
+                    
+                                    <tr>
+                                        <td>0</td>
+                                        <td>0.050703179091215134</td>
+                                        <td>0.7919267416000366</td>
+                                        <td>-2.913201093673706</td>
+                                        <td>3.4528589248657227</td>
+                                        <td>0.0</td>
+                                    </tr>
+                                    
+                    </table>
+                    
+                </div>
+                
+        </div>
+        
+            </div>
+        </body>
+        </html>
+        

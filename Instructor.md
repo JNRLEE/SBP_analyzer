@@ -1,365 +1,195 @@
-# SBP_analyzer 開發指南 (Ad-hoc 分析版)
+# SBP Analyzer (層級行為分析器 (Ad-hoc 分析版)) - 開發指引
 
-## 1. 專案概述
+## 目標
 
-SBP_analyzer 是一個專注於 **Ad-hoc (離線) 模型訓練分析** 的工具包。它旨在協助開發者深入理解已完成的深度學習模型訓練過程。本工具包的核心功能是分析儲存在指定目錄結構中的訓練結果，包括模型架構、訓練指標、以及透過模型鉤子 (hooks) 擷取的中間層數據。
+SBP Analyzer 專注於**離線深度學習模型分析Ad-hoc**，旨在提供全面的工具來分析模型結構、訓練動態以及中間層的行為模式，主要目標包括：
 
-本專案的目標是提供一個系統化、可擴展的框架，用以：
-- 解析和載入不同來源的訓練數據。
-- 計算多樣化的分析指標。
-- 提供豐富的視覺化工具以呈現分析結果。
-- 自動生成結構化的分析報告。
+1. **模型結構和參數分析**：解析模型架構、參數分佈和複雜度，識別可能的優化機會
+2. **訓練動態分析**：評估訓練過程中的損失曲線、指標變化和學習率影響
+3. **中間層激活值分析**：檢測層級異常（如死亡神經元、飽和現象）和激活模式
+4. **報告生成**：生成結構化、可視化的分析報告，提供可操作的見解
 
-## 2. 系統架構
+## 工作流程
 
-### 2.1 核心組件
+1. 從保存的實驗結果目錄讀取數據（模型結構、訓練歷史、中間層激活值等）
+2. 分析模型結構和參數統計特性
+3. 分析訓練過程中的損失函數和指標變化
+4. 分析中間層的激活值分佈和統計特性
+5. 生成視覺化結果（圖表、熱圖等）
+6. 輸出結構化的分析報告（HTML 或 Markdown 格式）
 
-```
-SBP_analyzer/
-├── analyzer/                    # 核心分析邏輯
-│   ├── __init__.py
-│   ├── base_analyzer.py         # 基礎分析器類別
-│   ├── model_structure_analyzer.py # 分析模型結構
-│   ├── training_dynamics_analyzer.py # 分析訓練動態 (loss, metrics)
-│   └── intermediate_data_analyzer.py # 分析中間層數據
-│
-├── data_loader/                 # 數據載入與解析
-│   ├── __init__.py
-│   ├── base_loader.py           # 基礎載入器
-│   ├── experiment_loader.py     # 載入標準實驗結果文件 (如 config.json, training_history.json)
-│   └── hook_data_loader.py      # 載入由模型鉤子儲存的數據 (.pt 文件)
-│
-├── metrics/                     # 分析指標計算
-│   ├── __init__.py
-│   ├── distribution_metrics.py  # 分布比較指標 (e.g., KL散度, Wasserstein距離)
-│   └── performance_metrics.py   # 模型性能指標 (e.g., 穩定性, 收斂速度)
-│   └── layer_activity_metrics.py # 層活躍度相關指標 (e.g., 稀疏度)
-│
-├── visualization/               # 視覺化功能
-│   ├── __init__.py
-│   ├── distribution_plots.py    # 分布視覺化 (直方圖, 密度圖)
-│   ├── performance_plots.py     # 性能視覺化 (學習曲線, 指標趨勢)
-│   ├── model_structure_plots.py # 模型結構視覺化 (計算圖)
-│   └── layer_activity_plots.py  # 層活動視覺化 (熱力圖, 激活值分布)
-│
-├── reporter/                    # 報告生成
-│   ├── __init__.py
-│   └── report_generator.py      # 生成 HTML 或 Markdown 格式的分析報告
-│
-├── utils/                       # 通用工具
-│   ├── __init__.py
-│   ├── file_utils.py            # 文件和目錄操作工具
-│   └── tensor_utils.py          # 張量處理和轉換工具
-│   └── stat_utils.py            # 常用統計函數
-│
-├── interfaces/                  # 用戶接口
-│   ├── __init__.py
-│   └── analyzer_interface.py    # 分析器主接口，用於啟動分析流程
-│
-└── tests/                       # 測試模組
-    ├── test_data/               # 存放測試用的模擬數據文件
-    ├── test_analyzer.py         # 測試分析器模組
-    ├── test_data_loader.py      # 測試數據載入器
-    ├── test_metrics.py          # 測試指標計算
-    └── test_visualization.py    # 測試視覺化功能
-```
+## 主要挑戰
 
-### 2.2 Ad-hoc 分析流程
+1. **適應不同模型架構**：處理各種深度學習模型（CNN、Transformer、GNN等）
+2. **異常檢測標準**：定義和檢測層級行為異常（例如何時判定為死亡神經元）
+3. **報告內容和格式**：決定哪些指標和視覺化結果最有幫助
+4. **性能和擴展性**：處理大型模型和大量數據
+5. **提供可操作的見解**：不僅識別問題，還提供改進建議
 
-典型的 Ad-hoc 分析流程如下：
+## 開發路線圖
 
-```python
-# 使用 Ad-hoc 分析模式
-from sbp_analyzer.interfaces.analyzer_interface import SBPAnalyzer
+### 階段一：基礎設施和數據載入（已完成）
 
-# 初始化分析器，指定包含訓練結果的目錄
-# 這裡假設指向 MicDysphagiaFramework 產生的實驗結果目錄
-analyzer = SBPAnalyzer(experiment_dir='results/audio_swin_regression_20250417_142912')
+- [X]  建立項目基礎架構和目錄結構
+- [X]  實現 ExperimentLoader 用於讀取實驗配置和結果
+- [X]  實現 HookDataLoader 用於讀取中間層激活值
+- [X]  設計基礎的 Analyzer 接口和類
 
-# 執行分析 (可以選擇性指定分析模組)
-analysis_results = analyzer.analyze(
-    analyze_model_structure=True,  # 分析模型結構
-    analyze_training_history=True, # 分析訓練歷史
-    analyze_hooks=True,            # 分析 hook 數據
-    epochs=[0, 5, 10],             # 可選擇指定要分析的特定輪次
-    layers=['patch_embed', 'layers.0']  # 可選擇指定要分析的特定層
-)
+### 階段二：模型結構分析（已完成）
 
-# 生成分析報告
-analyzer.generate_report(
-    output_dir='./analysis_report',
-    report_format='html' # 或 'markdown'
-)
+- [X]  實現 ModelStructureAnalyzer 進行模型參數分析
+- [X]  添加參數分佈統計和視覺化
+- [X]  添加模型複雜度計算（FLOPs、參數數量）
+- [X]  提供模型結構摘要和圖表
 
-# 或者，直接訪問特定分析結果
-model_summary = analysis_results.get_model_summary()
-loss_curve_plot = analysis_results.get_plot('loss_curve')
-layer_activation_dist = analysis_results.get_activation_distribution('patch_embed', epoch=0)
-```
+### 階段三：訓練動態分析（已完成）
 
-## 3. 開發路線圖
+- [X]  實現 TrainingDynamicsAnalyzer 解析訓練歷史
+- [X]  添加損失曲線分析和視覺化
+- [X]  添加學習率影響分析
+- [X]  添加過擬合/欠擬合檢測
 
-### 階段一：基礎架構和核心數據處理
+### 階段四：中間層數據分析（已完成）
 
-1.  **建立核心架構**
-    *   實現 `analyzer`, `data_loader`, `metrics`, `visualization`, `reporter`, `utils`, `interfaces` 目錄結構。
-    *   定義 `BaseAnalyzer` 和 `BaseLoader` 抽象基礎類別。
-2.  **基礎數據載入**
-    *   實現 `ExperimentLoader` 以載入 MicDysphagiaFramework 格式的訓練結果 (config.json, training_history.json 等)。
-    *   實現 `HookDataLoader` 以載入 hook 目錄中的 .pt 數據文件。
-    *   實現 `file_utils` 來處理路徑和文件查找。
-3.  **基礎指標和視覺化**
-    *   實現 `distribution_metrics` 中的基本分布統計量。
-    *   實現 `performance_metrics` 中的基本訓練指標計算。
-    *   實現 `distribution_plots` 和 `performance_plots` 中的基礎繪圖功能 (e.g., 直方圖, 學習曲線)。
-4.  **建立測試基礎**
-    *   設置 `pytest` 環境。
-    *   建立 `test_data` 目錄並加入模擬數據。
-    *   為 `data_loader` 和 `utils` 編寫初步的單元測試。
+- [X]  實現 IntermediateDataAnalyzer 分析中間層激活值
+- [X]  添加層級統計指標（均值、標準差、分位數）
+- [X]  實現死亡/飽和神經元檢測
+- [X]  添加層級相似度和激活模式變化分析
+- [X]  實現有效秩計算和特徵重要性分析
 
-### 階段二：核心分析功能開發
+### 階段五：報告生成和整合（已完成）
 
-1.  **模型結構分析**
-    *   實現 `ModelStructureAnalyzer`，解析 model_structure.json 文件中的模型層次結構和參數信息。
-    *   實現 `model_structure_plots`，繪製模型層級圖和參數分布圖。
-2.  **訓練動態分析**
-    *   實現 `TrainingDynamicsAnalyzer`，分析 training_history.json 中的 Loss 和 Metrics 趨勢。
-    *   在 `performance_metrics` 中加入更進階的指標 (e.g., 移動平均、變異數)。
-    *   在 `performance_plots` 中加入更多視覺化選項 (e.g., 指標相關性圖)。
-3.  **報告生成器初步實現**
-    *   實現 `ReportGenerator`，能夠將文字、指標和圖像整合到一個簡單的 Markdown 或 HTML 報告中。
-4.  **擴充測試**
-    *   為 `analyzer`, `metrics`, `visualization` 模組增加單元測試。
+- [X]  實現 ReportGenerator 生成結構化報告
+- [X]  設計報告模板支持 HTML 和 Markdown 格式
+- [X]  整合所有分析結果到報告中
+- [X]  添加可配置的報告生成選項
+- [X]  實現 generate_report 方法以支持測試需求
 
-### 階段三：中間層數據分析
+### 階段六：整合和測試（進行中）
 
-1.  **中間層數據分析器**
-    *   實現 `IntermediateDataAnalyzer`，分析 hooks 目錄中的激活值 (.pt) 數據。
-    *   實現 `layer_activity_metrics`，計算激活值的統計量 (e.g., 均值、標準差、稀疏度)。
-    *   實現 `layer_activity_plots`，繪製激活值的熱力圖或分布圖。
-2.  **進階分布比較**
-    *   在 `distribution_metrics` 中加入更複雜的指標 (e.g., KL 散度, Wasserstein 距離)。
-    *   在 `distribution_plots` 中加入比較視覺化 (e.g., 並排或重疊的分布圖)。
-3.  **增強報告功能**
-    *   允許自訂報告佈局和包含的內容。
-    *   支援輸出更多格式。
-4.  **整合測試**
-    *   編寫整合測試，模擬完整的分析流程。
+- [X]  實現 SBPAnalyzer 統一接口整合所有功能
+- [X]  編寫單元測試覆蓋關鍵功能
+- [X]  添加集成測試確保所有組件協同工作
+- [X]  修復測試過程中發現的 API 不一致問題
+- [X]  改善錯誤處理和健壯性
 
-### 階段四：高級功能與易用性提升
+### 階段七：完善和優化（計劃中）
 
-1.  **交互式視覺化 (可選)**
-    *   探索整合 Plotly 或 Bokeh 等庫，提供交互式圖表。
-2.  **可配置性與擴展性**
-    *   允許用戶通過配置文件指定分析參數和要使用的模組。
-    *   設計易於擴展的接口，方便用戶添加自訂的分析器、載入器、指標或繪圖函數。
-3.  **文檔與示例**
-    *   完善 API 文檔和使用指南。
-    *   提供針對不同應用場景的詳細示例 (e.g., 分析 CNN 的特徵圖, 分析 Transformer 的注意力權重)。
-4.  **性能優化**
-    *   針對大型數據集和複雜分析進行性能評估和優化。
+- [ ]  處理test的import issue
+- [ ]  優化性能和資源使用
+- [ ]  改進異常檢測標準和閾值設定
+- [ ]  添加更多層級行為指標
+- [ ]  精細化報告內容和建議系統
+- [ ]  擴展支持的模型類型
 
-## 4. 數據載入器設計
+## 技術考量
 
-### 4.1 MicDysphagiaFramework 實驗結果結構
+### 1. 數據結構
 
-SBP_analyzer 主要針對 MicDysphagiaFramework 產生的實驗結果進行分析。以下是預期的輸入目錄結構和文件格式：
+#### 實驗數據結構
 
-```
-results/
-└── {實驗名稱}_{時間戳}/               # 例：audio_swin_regression_20250417_142912/
-    ├── config.json                 # 實驗配置文件
-    ├── model_structure.json        # 模型結構信息
-    ├── training_history.json       # 訓練歷史記錄
-    ├── models/                     # 模型權重保存目錄
-    │   ├── best_model.pth          # 最佳模型權重
-    │   ├── checkpoint_epoch_0.pth  # 第0輪模型權重檢查點
-    │   └── checkpoint_epoch_1.pth  # 第1輪模型權重檢查點
-    ├── hooks/                      # 模型鉤子數據
-    │   ├── training_summary.pt     # 整體訓練摘要
-    │   ├── evaluation_results_test.pt  # 測試集評估結果
-    │   ├── epoch_0/                # 第0輪數據
-    │   │   ├── epoch_summary.pt    # 輪次摘要
-    │   │   ├── batch_0_data.pt     # 第0批次數據
-    │   │   └── head_activation_batch_0.pt  # 頭部層激活值
-    │   └── epoch_1/                # 第1輪數據
-    │       └── ...                 # 同上
-    ├── results/                    # 實驗結果
-    │   └── results.json            # 最終結果摘要
-    ├── tensorboard_logs/           # TensorBoard日誌
-    └── logs/                       # 訓練日誌
-```
+- `experiment_dir/`
+  - `config.json`: 實驗配置
+  - `model_structure.json`: 模型結構信息
+  - `training_history.json`: 訓練歷史記錄
+  - `models/`: 模型權重
+  - `hooks/`: 中間層數據
+    - `epoch_N/`: 各輪次數據
+      - `layer_activations.pt`: 激活值張量
 
-### 4.2 核心載入器設計
+#### 分析結果結構
 
-#### `ExperimentLoader`
+- `analysis_results/`
+  - `model_structure/`: 模型結構分析結果
+  - `training_dynamics/`: 訓練動態分析結果
+  - `intermediate_data/`: 中間層數據分析結果
+    - `layer_results`: 層級統計和異常信息
+    - `cross_layer_analysis`: 層間關係分析
 
-負責載入和解析實驗的基本信息和訓練結果：
+### 2. 層級活動指標設計
 
-```python
-class ExperimentLoader:
-    def __init__(self, experiment_dir):
-        self.experiment_dir = experiment_dir
-    
-    def load_config(self):
-        """載入 config.json 中的實驗配置"""
-        with open(os.path.join(self.experiment_dir, 'config.json'), 'r') as f:
-            return json.load(f)
-    
-    def load_model_structure(self):
-        """載入 model_structure.json 中的模型結構信息"""
-        with open(os.path.join(self.experiment_dir, 'model_structure.json'), 'r') as f:
-            return json.load(f)
-    
-    def load_training_history(self):
-        """載入 training_history.json 中的訓練歷史記錄"""
-        with open(os.path.join(self.experiment_dir, 'training_history.json'), 'r') as f:
-            return json.load(f)
-    
-    def load_results(self):
-        """載入 results/results.json 中的最終結果摘要"""
-        results_path = os.path.join(self.experiment_dir, 'results', 'results.json')
-        if os.path.exists(results_path):
-            with open(results_path, 'r') as f:
-                return json.load(f)
-        return None
-```
+- **基本統計**：均值、標準差、最大/最小值、分位數
+- **稀疏度指標**：零值比例、L1/L2正則化指標
+- **活動模式**：激活分佈形狀、峰度、偏度
+- **死亡/飽和檢測**：零活動率、飽和率（達到最大值的比例）
+- **有效秩分析**：通過 SVD 計算層的有效維度
+- **相似度分析**：層間和批次間的相似度計算
 
-#### `HookDataLoader`
+### 3. 報告結構設計
 
-負責載入和解析 hooks/ 目錄中的模型鉤子數據：
+- **概述部分**：模型整體情況和主要發現
+- **模型結構部分**：架構摘要和參數統計
+- **訓練動態部分**：損失曲線和收斂性分析
+- **層級分析部分**：各層統計和異常情況
+- **問題診斷部分**：潛在問題和建議解決方案
+- **可視化附錄**：詳細圖表和分佈
 
-```python
-class HookDataLoader:
-    def __init__(self, experiment_dir):
-        self.experiment_dir = experiment_dir
-        self.hooks_dir = os.path.join(experiment_dir, 'hooks')
-    
-    def load_training_summary(self):
-        """載入整體訓練摘要"""
-        return torch.load(os.path.join(self.hooks_dir, 'training_summary.pt'))
-    
-    def load_evaluation_results(self, dataset='test'):
-        """載入評估結果"""
-        return torch.load(os.path.join(self.hooks_dir, f'evaluation_results_{dataset}.pt'))
-    
-    def load_epoch_summary(self, epoch):
-        """載入特定輪次的摘要"""
-        return torch.load(os.path.join(self.hooks_dir, f'epoch_{epoch}', 'epoch_summary.pt'))
-    
-    def load_batch_data(self, epoch, batch):
-        """載入特定批次的數據"""
-        return torch.load(os.path.join(self.hooks_dir, f'epoch_{epoch}', f'batch_{batch}_data.pt'))
-    
-    def load_layer_activation(self, layer_name, epoch, batch):
-        """載入特定層在特定批次的激活值"""
-        pattern = f"{layer_name}_activation_batch_{batch}.pt"
-        path = os.path.join(self.hooks_dir, f'epoch_{epoch}', pattern)
-        if os.path.exists(path):
-            return torch.load(path)
-        return None
-    
-    def list_available_epochs(self):
-        """列出可用的輪次"""
-        return [int(d.split('_')[1]) for d in os.listdir(self.hooks_dir) 
-                if d.startswith('epoch_') and os.path.isdir(os.path.join(self.hooks_dir, d))]
-    
-    def list_available_layer_activations(self, epoch):
-        """列出特定輪次中可用的層激活值文件"""
-        epoch_dir = os.path.join(self.hooks_dir, f'epoch_{epoch}')
-        return [f for f in os.listdir(epoch_dir) if f.endswith('_activation_batch_0.pt')]
-```
+## 測試策略
 
-## 5. 開發環境與測試
+### 單元測試
 
-### 5.1 開發環境設置
+- 為每個核心功能編寫單元測試
+- 使用 mock 數據測試分析器的各個方法
+- 驗證計算結果和統計指標的正確性
 
-```bash
-# 創建並激活虛擬環境
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate     # Windows (使用適合您 shell 的命令)
+### 集成測試
 
-# 安裝依賴 (確保 requirements.txt 已更新)
-pip install -r requirements.txt
+- 測試完整的分析流程，從數據載入到報告生成
+- 使用真實世界的模型和數據進行端到端測試
+- 驗證各組件之間的交互正確性
 
-# 安裝開發模式
-pip install -e .
-```
+### 性能測試
 
-### 5.2 測試環境
+- 測試大型模型和大量數據的處理能力
+- 測量內存使用情況和處理時間
+- 識別性能瓶頸並優化
 
--   **測試框架**: 使用 `pytest`。
--   **測試數據**: 在 `tests/test_data/` 目錄下創建模擬的實驗結果目錄結構和數據文件，參照 MicDysphagiaFramework 的輸出格式。
--   **測試覆蓋率**: 目標是保持主要模組的測試覆蓋率在 80% 以上。
+## 最近修復和改進
 
-```python
-# tests/test_data_loader.py 範例
-import pytest
-from sbp_analyzer.data_loader import ExperimentLoader, HookDataLoader
+- [X]  修復 `IntermediateDataAnalyzer` 返回結構不一致問題，統一使用 `layer_results` 而非 `layer_statistics`
+- [X]  實現 `ReportGenerator.generate_report` 方法，支持特定測試需求的臨時參數覆蓋
+- [X]  修正 `visualization/__init__.py` 中的模塊名稱錯誤 (ModelStructurePlots -> ModelStructurePlotter)
+- [X]  修復 `calculate_effective_rank` 函數處理特殊形狀張量的問題
+- [X]  將 `run_complete_tests.py` 移至 `legacy` 目錄，支持直接使用 pytest 命令運行測試
+- [X]  修復 `distribution_metrics.py` 中的形狀處理和維度轉換問題
+- [X]  增強 `HookDataLoader` 的異常處理能力，尤其是處理舊版格式數據時
+- [X]  改進測試用例以適應最新的 API 結構
 
-def test_experiment_loader_loads_config(mock_experiment_dir):
-    loader = ExperimentLoader(mock_experiment_dir)
-    config = loader.load_config()
-    assert config is not None
-    assert 'experiment_name' in config
-    assert 'model' in config
+## 重構和改進方向
 
-def test_hook_data_loader_loads_training_summary(mock_experiment_dir):
-    loader = HookDataLoader(mock_experiment_dir)
-    summary = loader.load_training_summary()
-    assert summary is not None
-    assert 'total_training_time' in summary
-```
+### API 一致性
 
-## 6. 最佳實踐
+- 統一所有分析器的返回格式和結構
+- 標準化方法命名和參數規範
+- 確保接口設計的一致性和可預測性
 
-### 6.1 數據處理與記憶體
+### 錯誤處理
 
-1.  **延遲載入 (Lazy Loading)**: 對於大型的 hook 數據，僅在實際需要分析時才載入記憶體。
-2.  **抽樣 (Sampling)**: 對於大型激活值張量，提供抽樣選項以加速分析和視覺化。
-3.  **數據格式**: 內部盡量使用高效的數據結構 (如 Pandas DataFrame, NumPy arrays, PyTorch Tensors)。
+- 增強錯誤檢測和報告
+- 添加更明確的錯誤訊息和故障排除建議
+- 實現處理不完整或損壞數據的機制
 
-### 6.2 模組化與可配置性
+### 文檔
 
-1.  **解耦**: 分析器、載入器、指標計算、視覺化應盡量解耦，方便獨立測試和替換。
-2.  **配置**: 允許用戶通過接口參數或配置文件來自訂分析流程，例如選擇要運行的分析器、要計算的指標、要生成的圖表等。
+- 完善所有類和方法的 docstring
+- 添加更多使用示例和教程
+- 更新 README 和 API 文檔
 
-### 6.3 錯誤處理與日誌
+### 性能優化
 
-1.  **健壯性**: `DataLoader` 應能處理文件缺失或格式錯誤的情況，並提供有意義的錯誤訊息。
-2.  **日誌**: 在分析過程中記錄詳細的日誌，包括載入了哪些數據、執行了哪些分析、遇到的警告或錯誤等。
+- 優化張量操作和計算
+- 實現增量處理大型數據集的機制
+- 添加進度報告和中斷/恢復功能
 
-## 7. 開發指南
+### 擴展性
 
-### 7.1 編碼規範
+- 設計插件機制支持新的分析器和指標
+- 使模型架構支持更加模組化
+- 提供自定義報告和可視化的接口
 
-1.  遵循 PEP 8 風格指南。
-2.  為所有公共方法、類和模組提供清晰的 Docstrings (遵循如 Google 或 NumPy 風格)。
-3.  使用類型註解 (Type Hinting) 增強代碼可讀性和可靠性。
+## 開發環境和工具
 
-### 7.2 測試規範
-
-1.  為每個新功能或錯誤修復編寫單元測試。
-2.  確保測試涵蓋邊界條件和預期的錯誤情況。
-3.  定期運行測試套件並檢查覆蓋率報告。
-
-### 7.3 提交規範
-
-1.  遵循 Conventional Commits 規範或其他清晰的提交訊息格式。
-2.  每個提交應專注於一個邏輯單元 (如一個功能、一個修復)。
-3.  保持 Git 歷史清晰。
-
-## 8. 常見問題解答 (預期)
-
-### Q: `SBP_analyzer` 是否支持非 MicDysphagiaFramework 產生的實驗結果？
-A: 初期會專注於支持 MicDysphagiaFramework 的輸出格式。未來計劃添加適配器，以支持其他框架 (如 PyTorch Lightning, TensorFlow) 的輸出格式。
-
-### Q: 如何處理非常大的激活值數據文件？
-A: `HookDataLoader` 提供選項來僅載入數據的子集或進行抽樣。同時，分析器和視覺化模組也設計為能夠處理抽樣後的數據。
-
-### Q: 我可以添加自己的分析指標或視覺化方法嗎？
-A: 是的，設計目標之一就是提供可擴展的接口。用戶應該能夠繼承基礎類別 (如 `BaseAnalyzer`, `BaseMetricCalculator`, `BasePlotter`) 並註冊自己的實現。
-
-### Q: 分析報告可以自訂嗎？
-A: `ReportGenerator` 將提供選項來自訂報告中包含的內容、順序和可能的格式。
+- Python 3.8+
+- PyTorch 2.0+
+- 主要依賴：numpy, pandas, matplotlib, seaborn
+- 開發工具：pytest, black, flake8, mypy

@@ -1,0 +1,12 @@
+{
+  "test_metrics": {
+    "loss": 0.35,
+    "mse": 0.175,
+    "mae": 0.105,
+    "r2": 0.825
+  },
+  "training_time_hours": 10.0,
+  "best_model_path": "models/best_model.pth",
+  "final_model_path": "models/final_model.pth",
+  "convergence_epoch": 60
+}

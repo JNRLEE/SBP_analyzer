@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.1
 Name: sbp_analyzer
 Version: 0.1.0
 Summary: Analysis and monitoring tools for model training pipelines.
@@ -10,9 +10,3 @@ Classifier: Operating System :: OS Independent
 Requires-Python: >=3.8
 Requires-Dist: numpy
 Requires-Dist: tensorboard
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: requires-dist
-Dynamic: requires-python
-Dynamic: summary

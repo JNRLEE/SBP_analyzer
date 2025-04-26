@@ -1,0 +1,235 @@
+{
+    "model_name": "AudioSwinTransformer",
+    "model_type": null,
+    "architecture_type": "transformer",
+    "total_params": 4723393,
+    "trainable_params": 4723393,
+    "non_trainable_params": 0,
+    "layer_count": 7,
+    "layer_types": {
+        "PatchEmbed": 1,
+        "SwinTransformerBlock": 4,
+        "LayerNorm": 1,
+        "Linear": 1
+    },
+    "parameter_distribution": {
+        "by_type": {
+            "PatchEmbed": 4608,
+            "SwinTransformerBlock": 4716480,
+            "LayerNorm": 1536,
+            "Linear": 769
+        },
+        "by_type_pct": {
+            "PatchEmbed": 0.09755698922363648,
+            "SwinTransformerBlock": 99.85364334494292,
+            "LayerNorm": 0.03251899640787883,
+            "Linear": 0.016280669425559127
+        },
+        "by_layer": {
+            "patch_embed": 4608,
+            "layers.0.blocks.0": 55488,
+            "layers.1.blocks.0": 221952,
+            "layers.2.blocks.0": 887808,
+            "layers.3.blocks.0": 3551232,
+            "norm": 1536,
+            "head": 769
+        },
+        "concentration": {
+            "gini_coefficient": 0.7646607912090797
+        },
+        "percentiles": {
+            "p10": 1229.2,
+            "p25": 3072.0,
+            "p50": 55488.0,
+            "p75": 554880.0,
+            "p90": 1953177.600000001
+        }
+    },
+    "model_depth": 0,
+    "sparse_layers": [],
+    "largest_layers": [
+        {
+            "layer_id": "layers.3.blocks.0",
+            "type": "SwinTransformerBlock",
+            "parameters": 3551232
+        },
+        {
+            "layer_id": "layers.2.blocks.0",
+            "type": "SwinTransformerBlock",
+            "parameters": 887808
+        },
+        {
+            "layer_id": "layers.1.blocks.0",
+            "type": "SwinTransformerBlock",
+            "parameters": 221952
+        },
+        {
+            "layer_id": "layers.0.blocks.0",
+            "type": "SwinTransformerBlock",
+            "parameters": 55488
+        },
+        {
+            "layer_id": "patch_embed",
+            "type": "PatchEmbed",
+            "parameters": 4608
+        }
+    ],
+    "layer_complexity": {
+        "patch_embed": {
+            "parameter_complexity": 4608,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 18432,
+            "complexity_score": null
+        },
+        "layers.0.blocks.0": {
+            "parameter_complexity": 55488,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 221952,
+            "complexity_score": null
+        },
+        "layers.1.blocks.0": {
+            "parameter_complexity": 221952,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 887808,
+            "complexity_score": null
+        },
+        "layers.2.blocks.0": {
+            "parameter_complexity": 887808,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 3551232,
+            "complexity_score": null
+        },
+        "layers.3.blocks.0": {
+            "parameter_complexity": 3551232,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 14204928,
+            "complexity_score": null
+        },
+        "norm": {
+            "parameter_complexity": 1536,
+            "computational_complexity": null,
+            "io_complexity": 0,
+            "memory_footprint": 6144,
+            "complexity_score": null
+        },
+        "head": {
+            "parameter_complexity": 769,
+            "computational_complexity": 1538,
+            "io_complexity": 0,
+            "memory_footprint": 3076,
+            "complexity_score": 5.593331647828494
+        }
+    },
+    "weight_distributions": {
+        "patch_embed": {
+            "estimated_mean": 0.0,
+            "estimated_std": null,
+            "distribution_type": "unknown"
+        },
+        "layers.0.blocks.0": {
+            "estimated_mean": 0.0,
+            "estimated_std": null,
+            "distribution_type": "unknown"
+        },
+        "layers.1.blocks.0": {
+            "estimated_mean": 0.0,
+            "estimated_std": null,
+            "distribution_type": "unknown"
+        },
+        "layers.2.blocks.0": {
+            "estimated_mean": 0.0,
+            "estimated_std": null,
+            "distribution_type": "unknown"
+        },
+        "layers.3.blocks.0": {
+            "estimated_mean": 0.0,
+            "estimated_std": null,
+            "distribution_type": "unknown"
+        },
+        "norm": {
+            "estimated_mean": 0.0,
+            "estimated_std": null,
+            "distribution_type": "unknown"
+        },
+        "head": {
+            "estimated_mean": 0.0,
+            "estimated_std": 0.050964719143762556,
+            "distribution_type": "xavier"
+        }
+    },
+    "sequential_paths": [
+        [
+            {
+                "id": "patch_embed",
+                "type": "PatchEmbed"
+            }
+        ],
+        [
+            {
+                "id": "layers.0.blocks.0",
+                "type": "SwinTransformerBlock"
+            }
+        ],
+        [
+            {
+                "id": "layers.1.blocks.0",
+                "type": "SwinTransformerBlock"
+            }
+        ],
+        [
+            {
+                "id": "layers.2.blocks.0",
+                "type": "SwinTransformerBlock"
+            }
+        ],
+        [
+            {
+                "id": "layers.3.blocks.0",
+                "type": "SwinTransformerBlock"
+            }
+        ],
+        [
+            {
+                "id": "norm",
+                "type": "LayerNorm"
+            }
+        ],
+        [
+            {
+                "id": "head",
+                "type": "Linear"
+            }
+        ]
+    ],
+    "parameter_efficiency": {
+        "flops_per_param": 0.0003256133885111825,
+        "params_utilization": 1.0,
+        "relative_efficiency": 6.512267770223651e-06
+    },
+    "model_complexity": {
+        "total_params": 4723393,
+        "total_flops": 1538,
+        "total_memory": 18893572,
+        "flops_per_param": 0.0003256133885111825,
+        "gflops": 1.538e-06,
+        "hardware_estimates": {
+            "cpu_inference_ms": 1.538e-05,
+            "gpu_inference_ms": 7.69e-07,
+            "mobile_inference_ms": 7.69e-05
+        },
+        "complexity_class": "very light"
+    },
+    "layer_connectivity": {
+        "avg_indegree": 0,
+        "avg_outdegree": 0,
+        "max_indegree": 0,
+        "max_outdegree": 0,
+        "bottleneck_layers": [],
+        "hub_layers": []
+    }
+}

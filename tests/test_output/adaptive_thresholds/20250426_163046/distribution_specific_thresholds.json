@@ -1,0 +1,274 @@
+{
+  "very_strict": {
+    "thresholds": {
+      "dead": 0.001,
+      "saturated": 0.999
+    },
+    "metrics": {
+      "uniform_layer": {
+        "mean": 0.4984227120876312,
+        "median": 0.4974422752857208,
+        "std": 0.28807371854782104,
+        "min": 3.5822391510009766e-05,
+        "max": 0.999933660030365,
+        "distribution_type": "uniform",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "normal_layer": {
+        "mean": 0.4999561607837677,
+        "median": 0.49924802780151367,
+        "std": 0.14953435957431793,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "normal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "bimodal_layer": {
+        "mean": 0.5017204284667969,
+        "median": 0.5590749979019165,
+        "std": 0.3148984909057617,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "bimodal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "sparse_layer": {
+        "mean": 0.05088426172733307,
+        "median": 0.0,
+        "std": 0.17265930771827698,
+        "min": 0.0,
+        "max": 0.9999870657920837,
+        "distribution_type": "sparse",
+        "dead_percentage": 0.484375,
+        "saturated_percentage": 0.0
+      },
+      "dead_layer": {
+        "mean": 0.40670323371887207,
+        "median": 0.4560503363609314,
+        "std": 0.23737379908561707,
+        "min": -0.143549844622612,
+        "max": 1.100501537322998,
+        "distribution_type": "dead",
+        "dead_percentage": 0.1875,
+        "saturated_percentage": 0.0
+      },
+      "saturated_layer": {
+        "mean": 0.8133882880210876,
+        "median": 0.9206295609474182,
+        "std": 0.2585723102092743,
+        "min": 3.4449327358743176e-05,
+        "max": 1.0,
+        "distribution_type": "saturated",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.1875
+      }
+    }
+  },
+  "strict": {
+    "thresholds": {
+      "dead": 0.01,
+      "saturated": 0.99
+    },
+    "metrics": {
+      "uniform_layer": {
+        "mean": 0.4984227120876312,
+        "median": 0.4974422752857208,
+        "std": 0.28807371854782104,
+        "min": 3.5822391510009766e-05,
+        "max": 0.999933660030365,
+        "distribution_type": "uniform",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "normal_layer": {
+        "mean": 0.4999561607837677,
+        "median": 0.49924802780151367,
+        "std": 0.14953435957431793,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "normal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "bimodal_layer": {
+        "mean": 0.5017204284667969,
+        "median": 0.5590749979019165,
+        "std": 0.3148984909057617,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "bimodal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "sparse_layer": {
+        "mean": 0.05088426172733307,
+        "median": 0.0,
+        "std": 0.17265930771827698,
+        "min": 0.0,
+        "max": 0.9999870657920837,
+        "distribution_type": "sparse",
+        "dead_percentage": 0.65625,
+        "saturated_percentage": 0.0
+      },
+      "dead_layer": {
+        "mean": 0.40670323371887207,
+        "median": 0.4560503363609314,
+        "std": 0.23737379908561707,
+        "min": -0.143549844622612,
+        "max": 1.100501537322998,
+        "distribution_type": "dead",
+        "dead_percentage": 0.1875,
+        "saturated_percentage": 0.0
+      },
+      "saturated_layer": {
+        "mean": 0.8133882880210876,
+        "median": 0.9206295609474182,
+        "std": 0.2585723102092743,
+        "min": 3.4449327358743176e-05,
+        "max": 1.0,
+        "distribution_type": "saturated",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.1875
+      }
+    }
+  },
+  "moderate": {
+    "thresholds": {
+      "dead": 0.05,
+      "saturated": 0.95
+    },
+    "metrics": {
+      "uniform_layer": {
+        "mean": 0.4984227120876312,
+        "median": 0.4974422752857208,
+        "std": 0.28807371854782104,
+        "min": 3.5822391510009766e-05,
+        "max": 0.999933660030365,
+        "distribution_type": "uniform",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "normal_layer": {
+        "mean": 0.4999561607837677,
+        "median": 0.49924802780151367,
+        "std": 0.14953435957431793,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "normal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "bimodal_layer": {
+        "mean": 0.5017204284667969,
+        "median": 0.5590749979019165,
+        "std": 0.3148984909057617,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "bimodal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "sparse_layer": {
+        "mean": 0.05088426172733307,
+        "median": 0.0,
+        "std": 0.17265930771827698,
+        "min": 0.0,
+        "max": 0.9999870657920837,
+        "distribution_type": "sparse",
+        "dead_percentage": 0.65625,
+        "saturated_percentage": 0.0
+      },
+      "dead_layer": {
+        "mean": 0.40670323371887207,
+        "median": 0.4560503363609314,
+        "std": 0.23737379908561707,
+        "min": -0.143549844622612,
+        "max": 1.100501537322998,
+        "distribution_type": "dead",
+        "dead_percentage": 0.1875,
+        "saturated_percentage": 0.0
+      },
+      "saturated_layer": {
+        "mean": 0.8133882880210876,
+        "median": 0.9206295609474182,
+        "std": 0.2585723102092743,
+        "min": 3.4449327358743176e-05,
+        "max": 1.0,
+        "distribution_type": "saturated",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.375
+      }
+    }
+  },
+  "relaxed": {
+    "thresholds": {
+      "dead": 0.1,
+      "saturated": 0.9
+    },
+    "metrics": {
+      "uniform_layer": {
+        "mean": 0.4984227120876312,
+        "median": 0.4974422752857208,
+        "std": 0.28807371854782104,
+        "min": 3.5822391510009766e-05,
+        "max": 0.999933660030365,
+        "distribution_type": "uniform",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "normal_layer": {
+        "mean": 0.4999561607837677,
+        "median": 0.49924802780151367,
+        "std": 0.14953435957431793,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "normal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "bimodal_layer": {
+        "mean": 0.5017204284667969,
+        "median": 0.5590749979019165,
+        "std": 0.3148984909057617,
+        "min": 0.0,
+        "max": 1.0,
+        "distribution_type": "bimodal",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.0
+      },
+      "sparse_layer": {
+        "mean": 0.05088426172733307,
+        "median": 0.0,
+        "std": 0.17265930771827698,
+        "min": 0.0,
+        "max": 0.9999870657920837,
+        "distribution_type": "sparse",
+        "dead_percentage": 0.828125,
+        "saturated_percentage": 0.0
+      },
+      "dead_layer": {
+        "mean": 0.40670323371887207,
+        "median": 0.4560503363609314,
+        "std": 0.23737379908561707,
+        "min": -0.143549844622612,
+        "max": 1.100501537322998,
+        "distribution_type": "dead",
+        "dead_percentage": 0.1875,
+        "saturated_percentage": 0.0
+      },
+      "saturated_layer": {
+        "mean": 0.8133882880210876,
+        "median": 0.9206295609474182,
+        "std": 0.2585723102092743,
+        "min": 3.4449327358743176e-05,
+        "max": 1.0,
+        "distribution_type": "saturated",
+        "dead_percentage": 0.0,
+        "saturated_percentage": 0.5625
+      }
+    }
+  }
+}

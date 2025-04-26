@@ -1,23 +1,34 @@
+"""
+為SBP_analyzer項目設置安裝配置
+"""
+
 from setuptools import setup, find_packages
 
 setup(
-    name='sbp_analyzer',
-    version='0.1.0',
-    description='Analysis and monitoring tools for model training pipelines.',
-    author='Your Name', # 請替換成你的名字
-    author_email='your.email@example.com', # 請替換成你的 Email
-    packages=find_packages(),
+    name="sbp_analyzer",
+    version="0.1.0",
+    description="胸腔聲音分析工具套件",
+    author="Jenner Lee",
+    author_email="jenner.lee.com@gmail.com",
+    packages=find_packages(where=".", exclude=["tests*", "sbp_analyzer*"]),
+    package_dir={"": "."},
+    python_requires=">=3.8",
     install_requires=[
-        # 從 requirements.txt 讀取或直接列出
-        'numpy',
-        'tensorboard',
-        # 'matplotlib',
-        # 'scipy',
+        "numpy",
+        "pandas",
+        "matplotlib",
+        "scipy",
+        "librosa",
+        "torch",
+        "scikit-learn",
+        "pytest",
     ],
     classifiers=[
-        'Programming Language :: Python :: 3',
-        'License :: OSI Approved :: MIT License', # 或選擇其他授權
-        'Operating System :: OS Independent',
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
-    python_requires='>=3.8', # 指定 Python 版本要求
 )
