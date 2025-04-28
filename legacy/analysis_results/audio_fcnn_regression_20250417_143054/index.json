@@ -1,0 +1,13 @@
+{
+    "experiment_name": "audio_fcnn_regression_20250417_143054",
+    "analysis_date": "2025-04-26 17:39:56",
+    "analysis_results": [
+        "config_summary.json",
+        "corrected_training_history.json",
+        "custom_analysis_results.json",
+        "index.json"
+    ],
+    "plots": [
+        "custom_plots/loss_curve.png"
+    ]
+}

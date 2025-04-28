@@ -1,0 +1,47 @@
+{
+  "version": "1.0",
+  "last_updated": "2025-04-26",
+  "experiments": [
+    {
+      "name": "audio_swin_regression_20250417_142912",
+      "analysis_date": "2025-04-23",
+      "path": "audio_swin_regression_20250417_142912"
+    },
+    {
+      "name": "audio_fcnn_regression_20250417_143054",
+      "analysis_date": "2025-04-26",
+      "path": "audio_fcnn_regression_20250417_143054",
+      "summary": "FCNN模型訓練分析，發現早期收斂和輕微過擬合現象"
+    },
+    {
+      "name": "training_history_overfitting",
+      "analysis_date": "2025-04-20",
+      "path": "training_history_overfitting",
+      "type": "pattern_analysis"
+    },
+    {
+      "name": "training_history_good_training",
+      "analysis_date": "2025-04-20",
+      "path": "training_history_good_training",
+      "type": "pattern_analysis"
+    },
+    {
+      "name": "training_history_plateau",
+      "analysis_date": "2025-04-20",
+      "path": "training_history_plateau",
+      "type": "pattern_analysis"
+    },
+    {
+      "name": "training_history_unstable",
+      "analysis_date": "2025-04-20",
+      "path": "training_history_unstable",
+      "type": "pattern_analysis"
+    },
+    {
+      "name": "training_history_slow_convergence",
+      "analysis_date": "2025-04-20",
+      "path": "training_history_slow_convergence",
+      "type": "pattern_analysis"
+  }
+  ]
+}

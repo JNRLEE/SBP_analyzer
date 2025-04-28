@@ -1,0 +1,11 @@
+{
+    "best_val_loss": 33.244327545166016,
+    "final_train_loss": 59.69905090332031,
+    "final_val_loss": 39.443294525146484,
+    "training_time": 41.4856698513031,
+    "convergence_epoch": 2,
+    "early_stopping": true,
+    "overfitting_score": 0.18646690842395608,
+    "train_stability": 0.9840818572408199,
+    "val_stability": 2.886929367495607
+}
